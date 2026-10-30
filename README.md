@@ -5,7 +5,7 @@
 Finds jobs that fit you across hundreds of login-free job sites, and helps you apply with a tailored
 resume and cover letter that only use facts from your own CV.
 
-**Version 0.1.0** · [Changelog](CHANGELOG.md) · [Contributors](CONTRIBUTORS.md): @vivekchakraverty and Claude (Anthropic)
+**Version 0.1.0** · [MIT License](LICENSE) · [Changelog](CHANGELOG.md) · [Contributors](CONTRIBUTORS.md): @vivekchakraverty and Claude (Anthropic)
 
 ## Quick start
 
