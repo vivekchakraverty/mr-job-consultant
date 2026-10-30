@@ -1,0 +1,4 @@
+torch
+transformers>=5.0
+accelerate
+kernels>=0.17.2,<0.18.0

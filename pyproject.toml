@@ -1,0 +1,34 @@
+[project]
+name = "mr-job-consultant"
+version = "0.1.0"
+description = "Find jobs across login-free job sites and apply with a tailored, fact-checked resume and cover letter."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "vivekchakraverty" },
+  { name = "Claude (Anthropic)" },
+]
+dependencies = [
+  "httpx>=0.27",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.0",
+  "tldextract>=5.1",
+  "truststore>=0.9",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "python-multipart>=0.0.9",
+  "pypdf>=5.0",
+  "python-docx>=1.1",
+  "fpdf2>=2.8",
+  "trafilatura>=1.8",
+  "huggingface_hub>=1.0",
+  "gradio_client>=1.0",
+  "numpy",
+]
+
+[project.optional-dependencies]
+search = ["ddgs>=9.0"]
+render = ["playwright>=1.45"]
+
+[project.urls]
+Repository = "https://github.com/vivekchakraverty/mr-job-consultant"

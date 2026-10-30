@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mr. Job Consultant</title>
+  <meta name="description" content="Mr. Job Consultant: find jobs that fit you and apply with a tailored, honest resume.">
+  <meta name="application-name" content="Mr. Job Consultant">
+  <meta name="theme-color" content="#f5efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d1a17" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+
+  <main class="page">
+    <header class="intro">
+      <div class="brand">
+        <img class="brand-icon" src="/static/icon.svg" alt="" width="72" height="72">
+        <p class="brand-name">Mr. Job Consultant</p>
+      </div>
+      <h1>Let's find your next role</h1>
+      <p>Tell us what you're after, at your own pace. We'll use it to search the job sites and fill in their forms for you.</p>
+    </header>
+
+    <form id="profile" novalidate>
+      <!-- 1. Job title -->
+      <section class="card" aria-labelledby="t-title">
+        <div class="card-head">
+          <span class="step">1</span>
+          <div>
+            <h2 id="t-title">What role are you looking for?</h2>
+            <p class="hint">A job title works best: the way it would appear in a listing.</p>
+          </div>
+        </div>
+        <label class="visually-hidden" for="job-title">Job title</label>
+        <input id="job-title" class="field big" type="text" autocomplete="organization-title"
+               placeholder="e.g. Content Writer" maxlength="120" required>
+        <p class="error" id="err-title" role="alert"></p>
+
+        <div id="title-ideas" class="title-ideas" hidden>
+          <p class="mini-label" id="t-picked">We'll also search for <span class="optional">tap to remove</span></p>
+          <div class="chip-row" id="title-picked" role="group" aria-labelledby="t-picked"></div>
+          <p class="mini-label" id="t-more">More related titles <span class="optional">tap to add</span></p>
+          <div class="chip-row" id="title-more" role="group" aria-labelledby="t-more"></div>
+          <div class="add-title">
+            <label for="title-add" class="visually-hidden">Add another job title</label>
+            <input id="title-add" class="field" type="text" maxlength="120" placeholder="Add another title you'd take…">
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Location -->
+      <section class="card" aria-labelledby="t-where">
+        <div class="card-head">
+          <span class="step">2</span>
+          <div>
+            <h2 id="t-where">Where would you like to work?</h2>
+            <p class="hint">Add cities, regions or countries, as many as you like.</p>
+          </div>
+        </div>
+
+        <div class="segmented" role="radiogroup" aria-label="Location scope">
+          <button type="button" role="radio" aria-checked="true" data-scope="places">Specific places</button>
+          <button type="button" role="radio" aria-checked="false" data-scope="worldwide">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+            Worldwide
+          </button>
+        </div>
+
+        <div id="places" class="places">
+          <div class="combo" id="combo">
+            <ul class="chips" id="loc-chips" aria-label="Selected locations"></ul>
+            <input id="loc-input" class="combo-input" type="text" role="combobox" autocomplete="off"
+                   aria-autocomplete="list" aria-expanded="false" aria-controls="loc-list"
+                   aria-label="Search for a city, region or country" placeholder="Search a city, region or country…">
+          </div>
+          <ul id="loc-list" class="suggestions" role="listbox" aria-label="Location suggestions" hidden></ul>
+          <div class="quick" id="quick-locs" aria-label="Popular picks"></div>
+        </div>
+        <p id="worldwide-note" class="soft-note" hidden>We'll look everywhere, which works well with remote roles.</p>
+        <p class="error" id="err-where" role="alert"></p>
+      </section>
+
+      <!-- 3. Job type -->
+      <section class="card" aria-labelledby="t-type">
+        <div class="card-head">
+          <span class="step">3</span>
+          <div>
+            <h2 id="t-type">What kind of job?</h2>
+            <p class="hint">Pick all that suit you.</p>
+          </div>
+        </div>
+        <div class="pills" role="group" aria-labelledby="t-type">
+          <button type="button" class="pill" data-type="remote" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg>Remote
+          </button>
+          <button type="button" class="pill" data-type="full_time" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>Full-time
+          </button>
+          <button type="button" class="pill" data-type="part_time" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v8.5h8.5"/></svg>Part-time
+          </button>
+          <button type="button" class="pill" data-type="contract" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>Contract
+          </button>
+        </div>
+        <p class="error" id="err-type" role="alert"></p>
+      </section>
+
+      <!-- 4. Schedule -->
+      <section class="card" aria-labelledby="t-schedule">
+        <div class="card-head">
+          <span class="step">4</span>
+          <div>
+            <h2 id="t-schedule">What schedule works for you?</h2>
+            <p class="hint">Some sites ask this up front, especially for shift work.</p>
+          </div>
+        </div>
+        <div class="choices" role="radiogroup" aria-labelledby="t-schedule">
+          <button type="button" class="choice" role="radio" aria-checked="false" data-schedule="fixed">
+            <svg class="ico lg" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+            <span class="choice-title">Fixed</span>
+            <span class="choice-sub">Set hours or shifts</span>
+          </button>
+          <button type="button" class="choice" role="radio" aria-checked="false" data-schedule="flexible">
+            <svg class="ico lg" viewBox="0 0 24 24"><path d="M4 15c3-6 5 4 8-2s5 4 8-2"/><circle cx="12" cy="12" r="9.5" opacity=".35"/></svg>
+            <span class="choice-title">Flexible</span>
+            <span class="choice-sub">Work when it suits you</span>
+          </button>
+        </div>
+        <div id="shifts" class="shifts" hidden>
+          <p class="mini-label" id="t-shifts">Which shifts are you happy with? <span class="optional">Optional</span></p>
+          <div class="pills small" role="group" aria-labelledby="t-shifts">
+            <button type="button" class="pill" data-shift="morning" aria-pressed="false">Morning</button>
+            <button type="button" class="pill" data-shift="day" aria-pressed="false">Day</button>
+            <button type="button" class="pill" data-shift="evening" aria-pressed="false">Evening</button>
+            <button type="button" class="pill" data-shift="night" aria-pressed="false">Night</button>
+            <button type="button" class="pill" data-shift="rotating" aria-pressed="false">Rotating</button>
+            <button type="button" class="pill" data-shift="weekend" aria-pressed="false">Weekends</button>
+          </div>
+        </div>
+        <p class="error" id="err-schedule" role="alert"></p>
+      </section>
+
+      <!-- 5. CV -->
+      <section class="card" aria-labelledby="t-cv">
+        <div class="card-head">
+          <span class="step">5</span>
+          <div>
+            <h2 id="t-cv">Attach your CV</h2>
+            <p class="hint">We'll read your contact details from it, so you won't have to type them into every form.</p>
+          </div>
+        </div>
+
+        <label id="dropzone" class="dropzone" for="cv-input">
+          <input id="cv-input" type="file" accept=".pdf,.docx,.doc,.rtf,.txt" class="visually-hidden">
+          <svg class="ico xl" viewBox="0 0 24 24"><path d="M12 16V5M7.5 9.5 12 5l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <span class="drop-title">Drop your CV here, or <u>browse</u></span>
+          <span class="drop-sub">PDF, Word, RTF or text · up to 10 MB</span>
+        </label>
+
+        <div id="cv-file" class="cv-file" hidden>
+          <div class="file-ico" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+          </div>
+          <div class="file-meta">
+            <span id="cv-name" class="file-name"></span>
+            <span id="cv-size" class="file-size"></span>
+            <div class="progress" id="cv-progress" hidden><span></span></div>
+          </div>
+          <button type="button" class="link-btn" id="cv-replace">Replace</button>
+          <button type="button" class="icon-btn" id="cv-remove" aria-label="Remove CV">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+
+        <div id="contact" class="contact" hidden>
+          <p class="mini-label">From your CV. Check these before they go into application forms.</p>
+          <div class="grid">
+            <label>Full name<input class="field" id="c-name" autocomplete="name"></label>
+            <label>Email<input class="field" id="c-email" type="email" autocomplete="email"></label>
+            <label>Phone<input class="field" id="c-phone" type="tel" autocomplete="tel"></label>
+            <label>LinkedIn<input class="field" id="c-linkedin" type="url" placeholder="linkedin.com/in/…"></label>
+          </div>
+        </div>
+        <p class="error" id="err-cv" role="alert"></p>
+      </section>
+
+      <!-- 6. Optional details -->
+      <section class="card" aria-labelledby="t-more" data-optional>
+        <div class="card-head">
+          <span class="step">6</span>
+          <div>
+            <h2 id="t-more">A little more about you <span class="tag">Optional</span></h2>
+            <p class="hint">Bigger sites like Indeed, LinkedIn and Workday ask these. Share whatever you're comfortable with.</p>
+          </div>
+        </div>
+
+        <div class="sub-block">
+          <p class="mini-label" id="t-auth">Where are you already allowed to work?</p>
+          <div class="places" id="auth-places">
+            <div class="combo" id="auth-combo">
+              <ul class="chips" id="auth-chips" aria-label="Countries you can work in"></ul>
+              <input id="auth-input" class="combo-input" type="text" role="combobox" autocomplete="off"
+                     aria-autocomplete="list" aria-expanded="false" aria-controls="auth-list"
+                     aria-labelledby="t-auth" placeholder="Add a country…">
+            </div>
+            <ul id="auth-list" class="suggestions" role="listbox" aria-label="Country suggestions" hidden></ul>
+            <div class="quick" id="auth-quick"></div>
+          </div>
+        </div>
+
+        <div class="sub-block">
+          <p class="mini-label" id="t-sponsor">Will you need visa sponsorship?</p>
+          <div class="pills small" role="radiogroup" aria-labelledby="t-sponsor">
+            <button type="button" class="pill" role="radio" aria-checked="false" data-sponsor="no">No</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-sponsor="yes">Yes</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-sponsor="depends">Depends on the country</button>
+          </div>
+        </div>
+
+        <div class="sub-block">
+          <p class="mini-label" id="t-salary">What pay are you hoping for?</p>
+          <div class="salary" role="group" aria-labelledby="t-salary">
+            <label class="visually-hidden" for="sal-currency">Currency</label>
+            <select id="sal-currency" class="field select"></select>
+            <label class="visually-hidden" for="sal-min">From</label>
+            <input id="sal-min" class="field" type="text" inputmode="numeric" placeholder="From" autocomplete="off">
+            <span class="dash" aria-hidden="true">–</span>
+            <label class="visually-hidden" for="sal-max">Up to</label>
+            <input id="sal-max" class="field" type="text" inputmode="numeric" placeholder="Up to (optional)" autocomplete="off">
+            <label class="visually-hidden" for="sal-period">Per</label>
+            <select id="sal-period" class="field select">
+              <option value="year">per year</option>
+              <option value="month">per month</option>
+              <option value="hour">per hour</option>
+            </select>
+          </div>
+          <p class="error" id="err-salary" role="alert"></p>
+        </div>
+
+        <div class="sub-block">
+          <p class="mini-label" id="t-notice">When could you start?</p>
+          <div class="pills small" role="radiogroup" aria-labelledby="t-notice">
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="immediately">Right away</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="1_week">In 1 week</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="2_weeks">2 weeks</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="1_month">1 month</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="2_months">2 months</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="3_months">3 months</button>
+            <button type="button" class="pill" role="radio" aria-checked="false" data-notice="date">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Pick a date
+            </button>
+          </div>
+          <div id="start-date-wrap" class="date-wrap" hidden>
+            <label for="start-date" class="visually-hidden">Start date</label>
+            <input id="start-date" class="field" type="date">
+          </div>
+          <p class="error" id="err-notice" role="alert"></p>
+        </div>
+
+        <div class="sub-block">
+          <p class="mini-label" id="t-years">Years of relevant experience</p>
+          <div class="stepper" role="group" aria-labelledby="t-years">
+            <button type="button" class="icon-btn round" id="yrs-down" aria-label="Fewer years">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
+            </button>
+            <input id="years" class="field" type="text" inputmode="numeric" placeholder="–" maxlength="2" aria-labelledby="t-years">
+            <button type="button" class="icon-btn round" id="yrs-up" aria-label="More years">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg>
+            </button>
+            <span class="stepper-note" id="years-note">Leave blank to skip</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. How to search -->
+      <section class="card" aria-labelledby="t-how">
+        <div class="card-head">
+          <span class="step">7</span>
+          <div>
+            <h2 id="t-how">How should we pick jobs for you?</h2>
+            <p class="hint">Matching to your CV finds roles you'd fit even when the title is different.</p>
+          </div>
+        </div>
+        <div class="choices" role="radiogroup" aria-labelledby="t-how">
+          <button type="button" class="choice" role="radio" aria-checked="true" data-mode="cv">
+            <svg class="ico lg" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 14l2 2 4-4"/></svg>
+            <span class="choice-title">Match to my CV</span>
+            <span class="choice-sub">A small AI model reads your CV and scores each job</span>
+          </button>
+          <button type="button" class="choice" role="radio" aria-checked="false" data-mode="title">
+            <svg class="ico lg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            <span class="choice-title">Title &amp; location only</span>
+            <span class="choice-sub">Simple search, no AI involved</span>
+          </button>
+        </div>
+
+        <div id="ai-panel" class="ai-panel">
+          <div class="ai-status" id="ai-status" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span><span id="ai-status-text">Checking Hugging Face…</span>
+          </div>
+
+          <div id="token-form" class="token-form" hidden>
+            <label for="hf-token" class="mini-label">Your Hugging Face token</label>
+            <div class="token-row">
+              <input id="hf-token" class="field" type="password" autocomplete="off" spellcheck="false" placeholder="hf_…">
+              <button type="button" class="secondary" id="token-save">Use token</button>
+            </div>
+            <p class="fine">A free <em>read</em> token is enough. Create one at
+              <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co/settings/tokens</a>.
+              It stays in this browser and is only sent to this app, which passes it to Hugging Face for your own searches.</p>
+          </div>
+
+          <div class="ai-actions">
+            <button type="button" class="link-btn" id="token-change" hidden>Use a different token</button>
+            <button type="button" class="link-btn" id="token-forget" hidden>Forget my token</button>
+            <button type="button" class="secondary" id="space-setup" hidden>Set up my ZeroGPU Space</button>
+          </div>
+
+          <div class="who-pays">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+            <p>Matching always runs on <strong>your own</strong> Hugging Face account, using its free daily ZeroGPU time.
+              Other people's searches use their own accounts, never yours. Without a token we fall back to free keyword matching.</p>
+          </div>
+
+          <label class="check">
+            <input type="checkbox" id="allow-inference">
+            <span>If ZeroGPU is busy or used up, use my free monthly Inference credits as a backup</span>
+          </label>
+        </div>
+      </section>
+
+      <footer class="action-bar">
+        <p id="summary" class="summary" aria-live="polite">Fill in the steps above. Nothing is sent anywhere until you save.</p>
+        <button type="submit" class="primary" id="save">
+          <span>Save &amp; find jobs</span>
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+        </button>
+      </footer>
+    </form>
+
+    <section id="results" class="results" aria-labelledby="t-results" hidden>
+      <div class="results-head">
+        <div>
+          <h2 id="t-results" class="results-title">Jobs for you</h2>
+          <p id="results-meta" class="hint"></p>
+        </div>
+        <button type="button" class="secondary" id="refresh-jobs">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>Fetch fresh jobs
+        </button>
+      </div>
+      <div id="search-progress" class="search-progress" hidden>
+        <p id="search-message">Gathering jobs…</p>
+        <div class="progress big"><span></span></div>
+      </div>
+      <p id="backend-note" class="soft-note" hidden></p>
+      <ol id="job-list" class="job-list"></ol>
+    </section>
+  </main>
+
+  <dialog id="apply-dialog" class="sheet" aria-labelledby="ap-title">
+    <div class="sheet-head">
+      <div>
+        <h2 id="ap-title">Job title</h2>
+        <p id="ap-meta" class="hint"></p>
+      </div>
+      <button type="button" class="icon-btn" id="ap-close" aria-label="Close">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="sheet-body">
+      <section class="sheet-section">
+        <h3>Job description</h3>
+        <p id="ap-desc-note" class="soft-note small" hidden></p>
+        <div id="ap-desc" class="jd" tabindex="0" aria-live="polite">Fetching the full job post…</div>
+      </section>
+
+      <section class="sheet-section" id="ap-setup">
+        <h3>Your tailored documents</h3>
+        <div class="honesty">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+          <p>Only facts from your own CV are used. The AI may reorder and rephrase, but anything it adds that
+            your CV doesn't say is removed, and you'll see a list of exactly what was changed or left out.</p>
+        </div>
+
+        <p class="mini-label">Formats</p>
+        <div class="pills small" role="group" aria-label="File formats">
+          <button type="button" class="pill" data-format="pdf" aria-pressed="true">PDF</button>
+          <button type="button" class="pill" data-format="docx" aria-pressed="true">Word (DOCX)</button>
+          <button type="button" class="pill" data-format="txt" aria-pressed="false">Plain text</button>
+        </div>
+
+        <label class="check spaced">
+          <input type="checkbox" id="ap-letter" checked>
+          <span>Also write a cover letter</span>
+        </label>
+
+        <p class="mini-label">Which AI should write it?</p>
+        <div class="choices compact" role="radiogroup" aria-label="Writing engine">
+          <button type="button" class="choice" role="radio" aria-checked="true" data-engine="zerogpu">
+            <span class="choice-title">Free</span>
+            <span class="choice-sub" id="ap-engine-free">Your daily ZeroGPU time</span>
+          </button>
+          <button type="button" class="choice" role="radio" aria-checked="false" data-engine="inference">
+            <span class="choice-title">HF Inference</span>
+            <span class="choice-sub" id="ap-engine-paid">Your own HF credits, about 1–2¢</span>
+          </button>
+        </div>
+        <p id="ap-who" class="fine"></p>
+      </section>
+
+      <section class="sheet-section" id="ap-progress" hidden>
+        <p id="ap-progress-msg">Getting started…</p>
+        <div class="progress big"><span></span></div>
+      </section>
+
+      <section class="sheet-section" id="ap-result" hidden>
+        <h3>Ready to go</h3>
+        <ul id="ap-files" class="files"></ul>
+        <div id="ap-missing" class="missing" hidden>
+          <p class="mini-label">The job mentions these, but your CV doesn't, so we didn't add them:</p>
+          <div class="tags" id="ap-missing-tags"></div>
+        </div>
+        <details id="ap-report" class="report">
+          <summary>What was changed or left out (<span id="ap-report-count">0</span>)</summary>
+          <ul id="ap-report-list"></ul>
+        </details>
+        <p id="ap-blocked" class="soft-note small" hidden>Your browser blocked the new tab. Use the button below.</p>
+      </section>
+      <p class="error" id="ap-error" role="alert"></p>
+    </div>
+
+    <div class="sheet-foot">
+      <a id="ap-open" class="secondary" href="#" target="_blank" rel="noopener noreferrer">Open job page ↗</a>
+      <button type="button" class="primary" id="ap-go">
+        <span>Create documents &amp; open application</span>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
