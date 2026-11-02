@@ -42,12 +42,15 @@ def run(cmd: list, **kw) -> None:
 
 
 def stage_worker(system: str, arch: str) -> None:
-    """The YouTube worker with a clean, production-only npm install, trimmed to this platform."""
+    """The Node scripts in app/youtube with a clean, production-only npm install, trimmed to this platform."""
+    source = ROOT / "app" / "youtube"
     dest = STAGE / "youtube"
     shutil.rmtree(dest, ignore_errors=True)
     dest.mkdir(parents=True)
-    for name in ("worker.mjs", "package.json", "package-lock.json"):
-        shutil.copy2(ROOT / "app" / "youtube" / name, dest / name)
+    scripts = sorted(source.glob("*.mjs"))  # every worker script, so a new one is never left out of a build
+    for path in scripts + [source / "package.json", source / "package-lock.json"]:
+        shutil.copy2(path, dest / path.name)
+    print("bundling Node scripts:", ", ".join(p.name for p in scripts))
     npm = shutil.which("npm") or sys.exit("npm not found: install Node.js 20+")
     run([npm, "ci", "--omit=dev", "--no-audit", "--no-fund"], cwd=dest)
 
