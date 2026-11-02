@@ -79,12 +79,20 @@ class _Worker:
             except Exception as e:
                 log.warning("sentiment model download failed: %s", e)
 
-    def _start(self) -> None:
+    @staticmethod
+    def node_or_raise() -> str:
+        """Node.js and the worker's packages, checked before anything is downloaded or started."""
         node = _find_node()
         if not node:
-            raise VideoError("Video suggestions need Node.js, which isn't installed on this computer.")
-        if not (WORKER.parent / "node_modules" / "youtubei.js").exists():
-            raise VideoError("Video suggestions aren't installed yet: run `npm install` in app/youtube.")
+            raise VideoError("Video suggestions need Node.js 20 or newer, which isn't installed on this computer.")
+        packages = WORKER.parent / "node_modules"
+        if not all((packages / p).exists() for p in ("youtubei.js", "@huggingface/transformers")):
+            raise VideoError("Video suggestions aren't installed yet. Run `npm install --prefix app/youtube` "
+                             "in the app's folder, then restart the app.")
+        return node
+
+    def _start(self) -> None:
+        node = self.node_or_raise()
         self.proc = subprocess.Popen([node, str(WORKER)], cwd=WORKER.parent, stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                                      encoding="utf-8", bufsize=1,
@@ -198,6 +206,7 @@ async def top_videos(topic: str, skill: str, cache_dir: Path, model_cache: Path)
     if (saved := _cache_get(path)) is not None:
         return saved
     worker = _get_worker(model_cache)
+    worker.node_or_raise()  # say what's missing at once, rather than after a 125 MB model download
     await asyncio.to_thread(worker.ensure_model)
     found = await worker.call("search", query=query, limit=CANDIDATES)
     found = [v for v in found if not v.get("duration") or 90 <= v["duration"] <= 4 * 3600]

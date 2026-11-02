@@ -7,6 +7,13 @@
   career moves. The learning plan, videos, viewed tracking and tests work exactly as before, and
   the plan still starts from your CV. Upskilling keeps its suggestions.
 
+### Fixed
+- Upgrading from 0.1.0: without `npm install`, video lookups now say what to run straight away
+  instead of first downloading the 125 MB sentiment model. Without yt-dlp, tests say to re-run
+  `pip install -r requirements.txt` instead of failing with an import error. The README has an
+  "Upgrading from 0.1.0" section.
+- A topic's top 3 videos no longer include the same lesson twice from different channels.
+
 ## 0.2.0 (2026-11-02)
 
 Learn the skills the job asks for: two new tabs turn your CV into a learning plan, with the best

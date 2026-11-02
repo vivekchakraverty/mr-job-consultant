@@ -20,6 +20,23 @@ The `npm install` step (Node.js 20+) is only needed for the video suggestions in
 Then open http://127.0.0.1:8765. The job-portal directory in `data/public_job_portals.json` is
 included; rebuild or extend it with the crawler (below).
 
+### Upgrading from 0.1.0
+
+Stop the app, then in its folder:
+
+```bash
+git pull
+.venv\Scripts\python -m pip install -r requirements.txt
+npm install --prefix app/youtube
+.venv\Scripts\python -m uvicorn app.server:app --port 8765
+```
+
+Your saved search, CVs, tailored applications and Hugging Face settings carry over as they are: none of
+their files changed format, and `data/` holds nothing that the update overwrites. The new tabs reuse
+the CV from your saved search. If you skip the `pip` step, tests explain that yt-dlp is missing. If
+you skip `npm` (or have no Node.js), topics say how to turn videos on. Everything else works either
+way. The sentiment model for ranking videos (about 125 MB) downloads the first time videos load.
+
 ## The app (`app/`)
 
 The main screen collects what job sites ask for: job title, locations (city, region,
