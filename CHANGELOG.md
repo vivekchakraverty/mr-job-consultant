@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 (2026-11-02)
+
+Ready-to-run downloads for Windows, macOS and Linux: no Python, Node.js or setup needed.
+
+### Added
+- **Desktop builds** for Windows x64, macOS (Apple Silicon and Intel) and Linux x64, each with
+  Python, Node.js and every package inside. Run `MrJobConsultant` and the app opens in your browser.
+  Running it again while it's open just shows the open one; if port 8765 is taken, it picks another.
+- Builds keep your data in your user folder (`%APPDATA%\MrJobConsultant`,
+  `~/Library/Application Support/MrJobConsultant` or `~/.local/share/MrJobConsultant`), so installing
+  a new version never touches it. Running from source still uses `./data`; `MRJC_DATA_DIR`
+  overrides either.
+- `python packaging/build.py` builds for the system it runs on and self-checks the result;
+  `.github/workflows/build.yml` builds all four on GitHub Actions and attaches them to a release.
+- `python -m app.launcher` starts the app from source the same way the builds do.
+
+### Notes
+- The builds aren't code-signed yet: Windows SmartScreen may warn, and macOS needs the download flag
+  cleared once (see "Download" in the README).
+
 ## 0.2.1 (2026-11-02)
 
 Type any skill in Reskilling, and upgrade from 0.1.0 safely. To upgrade, follow "Upgrading from
