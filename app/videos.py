@@ -213,9 +213,15 @@ async def top_videos(topic: str, skill: str, cache_dir: Path, model_cache: Path)
             st = {}
         ranked.append(score(topic, skill, {**v, **{k: val for k, val in st.items() if val is not None}}))
     ranked.sort(key=lambda v: v["score"], reverse=True)
+    distinct, seen = [], []
+    for v in ranked:  # the same lesson re-uploaded by another channel only counts once
+        words = content(v["title"])
+        if not any(words and len(words & s) / len(words | s) >= 0.7 for s in seen):
+            distinct.append(v)
+            seen.append(words)
     best = [{k: v.get(k) for k in ("id", "title", "channel", "duration", "views", "likes", "comment_count",
                                    "published", "score", "positive_share", "like_rate", "top_comment")}
-            for v in ranked[:TOP]]
+            for v in distinct[:TOP]]
     if any(v["likes"] is not None for v in best):  # a ranking without any statistics is retried next time
         cache_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(best, ensure_ascii=False, indent=2), encoding="utf-8")

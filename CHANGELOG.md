@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Reskilling**: you now type the skill you want to learn, instead of picking from AI-suggested
+  career moves. The learning plan, videos, viewed tracking and tests work exactly as before, and
+  the plan still starts from your CV. Upskilling keeps its suggestions.
+
 ## 0.2.0 (2026-11-02)
 
 Learn the skills the job asks for: two new tabs turn your CV into a learning plan, with the best

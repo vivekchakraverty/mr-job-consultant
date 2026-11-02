@@ -118,9 +118,9 @@ in the tab. If the tailoring step has already extracted that CV's facts, they ar
 AI call; otherwise the CV text is read directly.
 
 * **Upskilling** suggests 8 specific skills that build on the CV for the current role, or for a role
-  typed in. **Reskilling** suggests 3 realistic new roles, the strengths that carry over, and the
-  skills each one needs. Skills the CV already names are dropped and listed.
-* Clicking a skill builds a plan aimed at moderate proficiency: 4–6 units, each split into modules,
+  typed in. Skills the CV already names are dropped and listed.
+* **Reskilling** has no suggestions: you type the skill you want to learn, any skill at all.
+* Picking or typing a skill builds a plan aimed at moderate proficiency: 4–6 units, each split into modules,
   with topics, a practice task per module, a checkpoint per unit and a capstone project. It can be
   downloaded as PDF or DOCX (`data/learning/files/`).
 
