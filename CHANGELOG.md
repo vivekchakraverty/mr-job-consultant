@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-11-02)
+
+Type any skill in Reskilling, and upgrade from 0.1.0 safely. To upgrade, follow "Upgrading from
+0.1.0" in the README (the same steps apply from 0.2.0).
 
 ### Changed
 - **Reskilling**: you now type the skill you want to learn, instead of picking from AI-suggested
