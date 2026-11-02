@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import uuid
 from dataclasses import asdict
 from datetime import date, datetime
@@ -18,7 +19,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
-from . import __version__, learning, llm, matching, quiz, render, tailor, videos
+from . import __version__, interview, learning, llm, matching, quiz, render, tailor, videos
 from .cv_extract import extract_contact, extract_text
 from .jobpage import fetch_job_page
 from .jobs import Job, best_title, filter_jobs, load_jobs
@@ -753,6 +754,112 @@ def learn_status(task_id: str) -> dict:
     if task_id not in TASKS:
         raise HTTPException(404, "That request has expired. Please try again.")
     return TASKS[task_id]
+
+
+# ---------- interview practice ----------
+
+INTERVIEW_DIR = DATA_DIR / "interview"
+SESSION_ID = r"^[0-9a-f]{12}$"
+MAX_ANSWER_VIDEO = 200 * 1024 * 1024
+MAX_FRAMES = 120
+
+
+def _session_dir(session: str) -> Path:
+    path = INTERVIEW_DIR / "sessions" / session
+    if not re.fullmatch(SESSION_ID, session) or not path.is_dir():
+        raise HTTPException(404, "That practice session is gone. Start a new one.")
+    return path
+
+
+@app.get("/api/interview/questions")
+def interview_questions() -> dict:
+    return {"questions": [{"q": q["q"], "seconds": q["seconds"]} for q in interview.QUESTIONS]}
+
+
+class InterviewStart(BaseModel):
+    role: str = Field(default="", max_length=120)
+
+
+@app.post("/api/interview/sessions")
+def interview_start(body: InterviewStart) -> dict:
+    session = uuid.uuid4().hex[:12]
+    path = INTERVIEW_DIR / "sessions" / session
+    path.mkdir(parents=True)
+    (path / "session.json").write_text(json.dumps({"id": session, "role": body.role.strip(),
+                                                   "created": datetime.now().isoformat(timespec="seconds")}),
+                                       encoding="utf-8")
+    return {"id": session}
+
+
+@app.post("/api/interview/sessions/{session}/answers/{number}")
+async def interview_answer(session: str, number: int, video: UploadFile = File(...), audio: UploadFile = File(...),
+                           frames: list[UploadFile] = File(default=[])) -> dict:
+    """One recorded answer: the video (kept for playback), its audio as WAV, and frames taken every 2 s."""
+    path = _session_dir(session)
+    if not 1 <= number <= len(interview.QUESTIONS):
+        raise HTTPException(404, "There's no such question.")
+    if len(frames) > MAX_FRAMES:
+        raise HTTPException(413, "That answer is too long. Keep answers under 4 minutes.")
+    suffix = ".mp4" if "mp4" in (video.content_type or "") else ".webm"
+    data = await video.read(MAX_ANSWER_VIDEO + 1)
+    if len(data) > MAX_ANSWER_VIDEO:
+        raise HTTPException(413, "That recording is too large. Keep answers under 4 minutes.")
+    wav = await audio.read(60 * 1024 * 1024)
+    if wav[:4] != b"RIFF" or wav[8:12] != b"WAVE":
+        raise HTTPException(400, "The audio didn't come through as WAV. Please record the answer again.")
+    for old in path.glob(f"q{number}.*"):  # re-recording replaces the earlier take
+        old.unlink()
+    frame_dir = path / f"q{number}-frames"
+    shutil.rmtree(frame_dir, ignore_errors=True)
+    frame_dir.mkdir()
+    (path / f"q{number}{suffix}").write_bytes(data)
+    (path / f"q{number}.wav").write_bytes(wav)
+    for i, frame in enumerate(frames):
+        jpg = await frame.read(2 * 1024 * 1024)
+        if jpg[:3] == b"\xff\xd8\xff":  # JPEG only
+            (frame_dir / f"{i:03d}.jpg").write_bytes(jpg)
+    (path / "result.json").unlink(missing_ok=True)  # feedback no longer matches the answers
+    return {"saved": number, "frames": len(list(frame_dir.glob("*.jpg")))}
+
+
+@app.get("/api/interview/sessions/{session}/answers/{number}/video")
+def interview_video(session: str, number: int) -> FileResponse:
+    video = interview.answer_files(_session_dir(session), number - 1)["video"]
+    if not video:
+        raise HTTPException(404, "No recording for that question yet.")
+    return FileResponse(video)
+
+
+@app.get("/api/interview/latest")
+def interview_latest() -> dict:
+    """The most recent practice session: its answers and, once analysed, its feedback."""
+    sessions = sorted((INTERVIEW_DIR / "sessions").glob("*/session.json"), key=lambda p: p.stat().st_mtime) \
+        if (INTERVIEW_DIR / "sessions").exists() else []
+    if not sessions:
+        return {}
+    path = sessions[-1].parent
+    meta = json.loads(sessions[-1].read_text(encoding="utf-8"))
+    answered = [i + 1 for i in range(len(interview.QUESTIONS)) if interview.answer_files(path, i)["wav"].exists()]
+    result = json.loads((path / "result.json").read_text(encoding="utf-8")) if (path / "result.json").exists() else None
+    return {**meta, "answered": answered, "result": result}
+
+
+@app.post("/api/interview/sessions/{session}/analyse")
+async def interview_analyse(session: str, request: Request, x_hf_token: str | None = Header(default=None)) -> dict:
+    path = _session_dir(session)
+    writer = _free_writer(request, x_hf_token)
+    meta = json.loads((path / "session.json").read_text(encoding="utf-8"))
+
+    async def work(task):
+        try:
+            result = await interview.analyse(path, INTERVIEW_DIR / "models", writer, meta.get("role", ""),
+                                             lambda share, message: task.update(progress=share, message=message))
+        except (interview.InterviewError, videos.VideoError) as e:
+            raise ValueError(str(e)) from e
+        (path / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        return result
+
+    return _start_task(work, "Getting started…")
 
 
 @app.get("/favicon.ico", include_in_schema=False)

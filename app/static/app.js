@@ -1554,9 +1554,318 @@ $("#cu-close").addEventListener("click", () => cuSheet.close());
 cuSheet.addEventListener("click", (e) => { if (e.target === cuSheet) cuSheet.close(); });
 $("#cu-fresh").addEventListener("click", () => { if (cu.panel && cu.skill) openCurriculum(cu.panel, cu.skill, true); });
 
+/* ---------- interview practice ---------- */
+
+const MAX_ANSWER_SECONDS = 240;
+const FRAME_EVERY_MS = 2000;
+const iv = { ready: false, questions: [], session: null, stream: null, recording: null, answers: {}, busy: false };
+
+const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+async function initInterview() {
+  ivRenderAI();
+  if (iv.ready) return;
+  iv.ready = true;
+  try {
+    iv.questions = (await (await fetch("/api/interview/questions")).json()).questions;
+    const latest = await (await fetch("/api/interview/latest")).json();
+    const profile = await (await fetch("/api/profile")).json().catch(() => ({}));
+    $("#iv-role").value = latest.role || profile.job_title || "";
+    if (latest.id) {
+      iv.session = latest.id;
+      for (const n of latest.answered) iv.answers[n] = { url: `/api/interview/sessions/${latest.id}/answers/${n}/video` };
+    }
+    renderQuestions();
+    if (latest.result) showInterviewResult(latest.result);
+  } catch {
+    iv.ready = false;
+    $("#iv-questions").innerHTML = `<li class="v-none">Couldn't load the questions. Is the app's server still running?</li>`;
+  }
+  if (!state.ai) loadAIStatus().then(ivRenderAI);
+}
+
+function ivRenderAI() {
+  const s = state.ai;
+  const box = $("#iv-ai");
+  const text = $("#iv-ai-text");
+  box.className = "ai-status";
+  if (!s) { text.textContent = "Checking Hugging Face…"; return; }
+  if (learnAIReady()) {
+    box.classList.add("ok");
+    text.innerHTML = `${esc(modelName())} on ZeroGPU: ready<span class="sub">Free. Uses ${esc(s.account.name)}'s own daily ZeroGPU time.</span>`;
+  } else {
+    box.classList.add("warn");
+    text.innerHTML = s.token_origin === "none" || s.token_error
+      ? `No working Hugging Face token yet<span class="sub">Add one in step 3 of the Upskilling tab.</span>`
+      : `The free writer Space isn't set up<span class="sub">There's no free model to write the feedback.</span>`;
+  }
+}
+
+function renderQuestions() {
+  const n = Object.keys(iv.answers).length;
+  $("#iv-questions").innerHTML = iv.questions.map((q, i) => {
+    const num = i + 1;
+    const a = iv.answers[num];
+    const rec = iv.recording?.num === num;
+    return `<li class="iv-q${a ? " done" : ""}${rec ? " live" : ""}" data-q="${num}">
+      <div class="iv-q-head">
+        <span class="step">${num}</span>
+        <div>
+          <p class="iv-q-text">${esc(q.q)}</p>
+          <p class="hint">${a?.seconds ? `Recorded · ${fmtClock(a.seconds)}${a.frames ? ` · ${a.frames} frames` : ""}`
+            : a ? "Recorded" : `Aim for ${Math.round(q.seconds[0] / 60) || 1}–${Math.round(q.seconds[1] / 60)} minutes`}</p>
+        </div>
+        <div class="iv-q-actions">
+          ${rec ? `<button type="button" class="primary small" data-stop="${num}">■ Stop</button>`
+            : `<button type="button" class="${a ? "secondary" : "primary"} small" data-record="${num}" ${iv.recording || iv.busy ? "disabled" : ""}>
+                ● ${a ? "Re-record" : "Record answer"}</button>`}
+        </div>
+      </div>
+      ${a?.url && !rec ? `<video class="iv-playback" controls preload="metadata" src="${esc(a.url)}"></video>` : ""}
+      ${a?.uploading ? `<p class="v-loading">Saving your answer…</p>` : ""}
+    </li>`;
+  }).join("");
+  $("#iv-analyse").disabled = !n || !!iv.recording || iv.busy;
+  $("#iv-summary").textContent = n ? `${n} of ${iv.questions.length} answered${n < iv.questions.length ? ". You can get feedback now or answer the rest first." : "."}`
+    : "Record at least one answer to get feedback.";
+  $$("#iv-questions .card, #panel-interview .card")[2]?.classList.toggle("done", n === iv.questions.length);
+}
+
+async function startCamera() {
+  $("#iv-err-camera").textContent = "";
+  if (iv.stream) return true;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $("#iv-err-camera").textContent = "This browser can't use a camera here. Open the app in Chrome, Edge or Firefox.";
+    return false;
+  }
+  try {
+    iv.stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (e) {
+    $("#iv-err-camera").textContent = e.name === "NotAllowedError"
+      ? "The browser wasn't allowed to use your camera and microphone. Allow them in the address bar, then try again."
+      : "Couldn't start the camera or microphone. Check they're connected and not in use by another app.";
+    return false;
+  }
+  const video = $("#iv-preview");
+  video.srcObject = iv.stream;
+  await video.play().catch(() => {});
+  $("#iv-overlay").hidden = true;
+  $("#iv-camera").hidden = true;
+  $("#panel-interview .card:nth-of-type(2)")?.classList.add("done");
+  return true;
+}
+
+function stopCamera() {
+  if (!iv.stream || iv.recording) return;
+  iv.stream.getTracks().forEach((t) => t.stop());
+  iv.stream = null;
+  $("#iv-preview").srcObject = null;
+  $("#iv-overlay").hidden = false;
+  $("#iv-camera").hidden = false;
+}
+
+const pickType = (types) => types.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || "";
+
+async function startAnswer(num) {
+  if (iv.recording || !(await startCamera())) return;
+  if (!iv.session) {
+    const res = await fetch("/api/interview/sessions", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: $("#iv-role").value.trim() }) });
+    iv.session = (await res.json()).id;
+  }
+  const videoType = pickType(["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]);
+  const audioType = pickType(["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]);
+  // The audio is recorded on its own too: decoding it from the video file isn't possible in every browser.
+  const rec = { num, video: new MediaRecorder(iv.stream, videoType ? { mimeType: videoType } : {}),
+                audio: new MediaRecorder(new MediaStream(iv.stream.getAudioTracks()), audioType ? { mimeType: audioType } : {}),
+                chunks: { video: [], audio: [] }, frames: [], started: performance.now() };
+  rec.video.ondataavailable = (e) => e.data.size && rec.chunks.video.push(e.data);
+  rec.audio.ondataavailable = (e) => e.data.size && rec.chunks.audio.push(e.data);
+  const canvas = document.createElement("canvas");
+  const grab = () => {  // a frame of the recording every 2 seconds, for the body-language models
+    const v = $("#iv-preview");
+    if (!v.videoWidth) return;
+    canvas.width = 480;
+    canvas.height = Math.round(480 * v.videoHeight / v.videoWidth);
+    canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((b) => b && rec.frames.push(b), "image/jpeg", 0.85);
+  };
+  rec.timer = setInterval(() => {
+    const s = (performance.now() - rec.started) / 1000;
+    $("#iv-rec-time").textContent = fmtClock(s);
+    if (s >= MAX_ANSWER_SECONDS) stopAnswer();
+  }, 250);
+  rec.grabber = setInterval(grab, FRAME_EVERY_MS);
+  setTimeout(grab, 500);
+  rec.video.start(1000);
+  rec.audio.start(1000);
+  iv.recording = rec;
+  $("#iv-rec").hidden = false;
+  $("#iv-now").hidden = false;
+  $("#iv-now").textContent = iv.questions[num - 1].q;
+  $("#iv-preview").scrollIntoView({ behavior: "smooth", block: "center" });
+  renderQuestions();
+}
+
+const stopped = (recorder) => new Promise((resolve) => { recorder.onstop = resolve; recorder.stop(); });
+
+/** The recorded audio as 16 kHz mono 16-bit WAV, which is what the speech model reads. */
+async function toWav(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+  const offline = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * 16000)), 16000);
+  const src = offline.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offline.destination);
+  src.start();
+  const pcm = (await offline.startRendering()).getChannelData(0);
+  const out = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+  const text = (o, s) => [...s].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
+  text(0, "RIFF"); out.setUint32(4, 36 + pcm.length * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, 16000, true); out.setUint32(28, 32000, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  text(36, "data"); out.setUint32(40, pcm.length * 2, true);
+  pcm.forEach((v, i) => out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, v)) * 0x7fff, true));
+  return new Blob([out], { type: "audio/wav" });
+}
+
+async function stopAnswer() {
+  const rec = iv.recording;
+  if (!rec || rec.stopping) return;
+  rec.stopping = true;
+  clearInterval(rec.timer);
+  clearInterval(rec.grabber);
+  await Promise.all([stopped(rec.video), stopped(rec.audio)]);
+  const seconds = (performance.now() - rec.started) / 1000;
+  iv.recording = null;
+  $("#iv-rec").hidden = true;
+  $("#iv-now").hidden = true;
+  const video = new Blob(rec.chunks.video, { type: rec.video.mimeType || "video/webm" });
+  iv.answers[rec.num] = { url: URL.createObjectURL(video), seconds, frames: rec.frames.length, uploading: true };
+  iv.busy = true;
+  renderQuestions();
+  try {
+    if (seconds < 3) throw new Error("That was too short to review. Record the answer again.");
+    const body = new FormData();
+    body.append("video", video, `q${rec.num}.${video.type.includes("mp4") ? "mp4" : "webm"}`);
+    body.append("audio", await toWav(new Blob(rec.chunks.audio, { type: rec.audio.mimeType })), `q${rec.num}.wav`);
+    rec.frames.forEach((f, i) => body.append("frames", f, `${i}.jpg`));
+    const res = await fetch(`/api/interview/sessions/${iv.session}/answers/${rec.num}`, { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(apiError(data) || "Couldn't save that answer.");
+    iv.answers[rec.num].uploading = false;
+    toast(`Answer ${rec.num} saved.`);
+  } catch (e) {
+    delete iv.answers[rec.num];
+    toast(e.message || "Couldn't save that answer. Please record it again.", true);
+  } finally {
+    iv.busy = false;
+    renderQuestions();
+  }
+}
+
+$("#iv-camera").addEventListener("click", startCamera);
+$("#iv-questions").addEventListener("click", (e) => {
+  const record = e.target.closest("[data-record]");
+  const stop = e.target.closest("[data-stop]");
+  if (record) startAnswer(Number(record.dataset.record));
+  if (stop) stopAnswer();
+});
+$("#iv-role").addEventListener("change", async () => {  // a new role starts a new session, so feedback matches it
+  if (!iv.session || iv.recording) return;
+  if (Object.keys(iv.answers).length) return;  // answers already recorded keep their session
+  iv.session = null;
+});
+
+$("#iv-analyse").addEventListener("click", async () => {
+  if (!iv.session || iv.busy) return;
+  if (!state.ai) await loadAIStatus();
+  ivRenderAI();
+  if (!learnAIReady()) return toast("The feedback needs your Hugging Face token: add it in step 3 of the Upskilling tab.", true);
+  iv.busy = true;
+  renderQuestions();
+  $("#iv-results").hidden = false;
+  $("#iv-progress").hidden = false;
+  $("#iv-error").textContent = "";
+  $("#iv-report").innerHTML = "";
+  $("#iv-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  const bar = $("#iv-progress .progress span");
+  try {
+    const result = await runLearnTask(`/api/interview/sessions/${iv.session}/analyse`, {}, (task) => {
+      $("#iv-progress-msg").textContent = task.message || "Working…";
+      bar.style.width = `${Math.max(4, Math.round((task.progress || 0) * 100))}%`;
+    });
+    showInterviewResult(result);
+  } catch (e) {
+    $("#iv-error").textContent = e.message || "Something went wrong.";
+  } finally {
+    $("#iv-progress").hidden = true;
+    iv.busy = false;
+    renderQuestions();
+  }
+});
+
+const AREAS = { body_language: "Body language", articulation: "Articulation", mindset: "Mindset" };
+
+function scoreTile(area, value) {
+  const pct = value ? (value / 5) * 100 : 0;
+  return `<div class="iv-score"><span class="iv-score-label">${AREAS[area]}</span>
+    <strong>${value ?? "–"}<small>/5</small></strong>
+    <span class="iv-bar"><span style="width:${pct}%"></span></span></div>`;
+}
+
+function measureChips(s, b) {
+  const fillers = Object.entries(s.filler_words || {}).map(([w, n]) => `${w} ×${n}`).join(", ");
+  const chips = [
+    `${s.words_per_minute} words/min`,
+    `${fmtClock(s.length_seconds)} long (aim ${s.expected_seconds.replace("-", "–")} s)`,
+    fillers ? `fillers: ${fillers}` : "no filler words",
+    s.pauses_over_1_2s ? `${s.pauses_over_1_2s} long pause${s.pauses_over_1_2s > 1 ? "s" : ""}` : "no long pauses",
+    b.facing_camera_pct != null && `facing the camera ${b.facing_camera_pct}% of the time`,
+    b.smiling_pct != null && `smiling in ${b.smiling_pct}% of frames`,
+    b.hands_visible_pct != null && `hands in view ${b.hands_visible_pct}%`,
+  ].filter(Boolean);
+  return `<div class="tags neutral">${chips.map((c) => `<span>${esc(c)}</span>`).join("")}</div>`;
+}
+
+function showInterviewResult(r) {
+  $("#iv-results").hidden = false;
+  $("#iv-results-meta").textContent = [r.role && `For ${r.role}`, r.analysed_at && `analysed ${new Date(r.analysed_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}`]
+    .filter(Boolean).join(" · ");
+  const answers = Object.entries(r.answers || {});
+  $("#iv-report").innerHTML = `
+    <div class="iv-scores">${Object.keys(AREAS).map((a) => scoreTile(a, r.overall?.[a])).join("")}</div>
+    ${r.top_fixes?.length ? `<section class="card iv-fixes"><h3>Fix these first</h3><ol>${r.top_fixes.map((f) => `<li>
+      <span class="badge">${AREAS[f.area]}</span> <strong>${esc(f.issue)}</strong>
+      ${f.fix ? `<span class="iv-fix">${esc(f.fix)}</span>` : ""}<span class="fine">${esc(f.question)}</span></li>`).join("")}</ol></section>` : ""}
+    <ol class="iv-answers">${answers.map(([num, a], k) => {
+      const fb = a.feedback;
+      const sc = fb ? Object.keys(AREAS).map((x) => `${AREAS[x]} ${fb.scores[x] ?? "–"}`).join(" · ") : "not reviewed";
+      return `<li class="iv-answer"><details ${k === 0 ? "open" : ""}>
+        <summary><span class="unit-n">Question ${num}</span><span class="unit-title">${esc(a.question)}</span><span class="unit-hours">${esc(sc)}</span></summary>
+        <div class="iv-answer-body">
+          ${iv.session ? `<video class="iv-playback" controls preload="metadata" src="/api/interview/sessions/${iv.session}/answers/${num}/video"></video>` : ""}
+          ${measureChips(a.speech, a.body)}
+          ${a.feedback_error ? `<p class="v-none">${esc(a.feedback_error)}</p>` : ""}
+          ${fb ? `
+            ${fb.flaws.length ? `<h4>What to work on</h4><ul class="iv-flaws">${fb.flaws.map((f) => `<li>
+              <span class="badge">${AREAS[f.area]}</span> <strong>${esc(f.issue)}</strong>
+              ${f.evidence ? `<span class="iv-evidence">${esc(f.evidence)}</span>` : ""}
+              ${f.fix ? `<span class="iv-fix">Try: ${esc(f.fix)}</span>` : ""}</li>`).join("")}</ul>` : ""}
+            ${fb.strengths.length ? `<h4>What worked</h4><ul class="iv-strengths">${fb.strengths.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>` : ""}
+            ${fb.stronger_answer ? `<h4>A stronger answer</h4><p>${esc(fb.stronger_answer)}</p>` : ""}` : ""}
+          <details class="iv-transcript"><summary>What you said</summary><p>${esc(a.transcript || "(nothing was picked up)")}</p></details>
+        </div></details></li>`;
+    }).join("")}</ol>`;
+}
+
 /* ---------- tabs ---------- */
 
-const TAB_HASH = { jobs: "", upskill: "#upskilling", reskill: "#reskilling" };
+const TAB_HASH = { jobs: "", upskill: "#upskilling", reskill: "#reskilling", interview: "#interview" };
 
 function showTab(name) {
   $$("[role=tab]").forEach((t) => {
@@ -1565,7 +1874,9 @@ function showTab(name) {
     t.tabIndex = on ? 0 : -1;
     $(`#${t.getAttribute("aria-controls")}`).hidden = !on;
   });
-  if (name !== "jobs") initLearn().then(refreshLearnAI);
+  if (name === "upskill" || name === "reskill") initLearn().then(refreshLearnAI);
+  if (name === "interview") initInterview();
+  else stopCamera();  // let the camera go when leaving the Interview tab
 }
 
 $$("[role=tab]").forEach((t) => t.addEventListener("click", () => {

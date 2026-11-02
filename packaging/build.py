@@ -46,8 +46,10 @@ def stage_worker(system: str, arch: str) -> None:
     dest = STAGE / "youtube"
     shutil.rmtree(dest, ignore_errors=True)
     dest.mkdir(parents=True)
-    for name in ("worker.mjs", "package.json", "package-lock.json"):
-        shutil.copy2(ROOT / "app" / "youtube" / name, dest / name)
+    source = ROOT / "app" / "youtube"
+    scripts = sorted(source.glob("*.mjs"))  # every worker script (worker.mjs, media.mjs…), so none is left out
+    for path in scripts + [source / "package.json", source / "package-lock.json"]:
+        shutil.copy2(path, dest / path.name)
     npm = shutil.which("npm") or sys.exit("npm not found: install Node.js 20+")
     run([npm, "ci", "--omit=dev", "--no-audit", "--no-fund"], cwd=dest)
 

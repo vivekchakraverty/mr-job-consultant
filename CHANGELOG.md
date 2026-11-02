@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Interview tab**: record yourself answering five tough non-technical questions, then get feedback
+  on your body language, articulation and mindset compared with what interviewers commonly look for.
+  Speech (Whisper), body pose (ViTPose) and smiles are analysed free on your own computer; the free
+  writer Space turns the measurements and transcript into scores, flaws with evidence, fixes and a
+  stronger answer. Recordings stay on your computer.
+- Desktop builds include every Node script in `app/youtube`, so the Interview tab's `media.mjs` is
+  bundled too.
+
 ## 0.3.0 (2026-11-02)
 
 Ready-to-run downloads for Windows, macOS and Linux: no Python, Node.js or setup needed.

@@ -64,10 +64,12 @@ def _find_node() -> str | None:
 
 
 class _Worker:
-    """The Node worker, started on first use and restarted if it dies. Thread-safe."""
+    """A Node worker in app/youtube (this module's, or another script there such as the interview
+    practice's media.mjs), started on first use and restarted if it dies. Thread-safe."""
 
-    def __init__(self, model_cache: Path):
+    def __init__(self, model_cache: Path, script: Path = WORKER):
         self.model_cache = model_cache
+        self.script = script
         self.proc: subprocess.Popen | None = None
         self.pending: dict[int, tuple[asyncio.AbstractEventLoop, asyncio.Future]] = {}
         self.ids = itertools.count(1)
@@ -117,7 +119,7 @@ class _Worker:
 
     def _start(self) -> None:
         node = self.node_or_raise()
-        self.proc = subprocess.Popen([node, str(WORKER)], cwd=WORKER.parent, stdin=subprocess.PIPE,
+        self.proc = subprocess.Popen([node, str(self.script)], cwd=self.script.parent, stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                                      encoding="utf-8", bufsize=1,
                                      env={**os.environ, "MODEL_DIR": str(self.model_cache.resolve())})  # the worker runs in app/youtube
