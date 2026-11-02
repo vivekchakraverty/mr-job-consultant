@@ -8,6 +8,7 @@ data/applications/
 data/search_profile.json
 data/access_overrides.csv
 data/learning/
+data/interview/
 
 # installed by `npm install` in app/youtube
 node_modules/

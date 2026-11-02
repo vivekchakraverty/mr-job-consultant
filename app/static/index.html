@@ -34,6 +34,9 @@
         <button type="button" role="tab" id="tab-reskill" aria-controls="panel-reskill" aria-selected="false" data-tab="reskill" tabindex="-1">
           <svg class="ico" viewBox="0 0 24 24"><path d="M4 7h11l-3-3M20 17H9l3 3"/></svg>Reskilling
         </button>
+        <button type="button" role="tab" id="tab-interview" aria-controls="panel-interview" aria-selected="false" data-tab="interview" tabindex="-1">
+          <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3"/></svg>Interview
+        </button>
       </nav>
     </header>
 
@@ -382,6 +385,103 @@
 
     <section id="panel-upskill" class="learn" role="tabpanel" aria-labelledby="tab-upskill" data-mode="upskill" hidden></section>
     <section id="panel-reskill" class="learn" role="tabpanel" aria-labelledby="tab-reskill" data-mode="reskill" hidden></section>
+
+    <section id="panel-interview" role="tabpanel" aria-labelledby="tab-interview" hidden>
+      <div class="intro panel-intro">
+        <h1>Practise the tough questions</h1>
+        <p>Answer five common interview questions on camera. We'll look at your body language, how you speak and
+          the mindset your answers show, and compare them with what interviewers look for.</p>
+      </div>
+
+      <div class="learn-cards">
+        <section class="card" data-optional>
+          <div class="card-head">
+            <span class="step">1</span>
+            <div>
+              <h2>Role you're interviewing for <span class="tag">Optional</span></h2>
+              <p class="hint">Feedback is sharper when it knows the job.</p>
+            </div>
+          </div>
+          <input class="field" type="text" id="iv-role" maxlength="120" placeholder="e.g. Senior Content Writer" aria-label="Role you're interviewing for">
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <span class="step">2</span>
+            <div>
+              <h2>Camera and microphone</h2>
+              <p class="hint">Sit where your face and shoulders are in view, with light in front of you.</p>
+            </div>
+          </div>
+          <div class="iv-stage">
+            <video id="iv-preview" muted playsinline aria-label="Your camera"></video>
+            <p class="iv-overlay" id="iv-overlay">Camera is off</p>
+            <span class="iv-rec" id="iv-rec" hidden><span class="dot"></span><span id="iv-rec-time">0:00</span></span>
+            <p class="iv-question-overlay" id="iv-now" hidden></p>
+          </div>
+          <div class="ai-actions">
+            <button type="button" class="secondary" id="iv-camera">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3"/></svg>Turn on camera
+            </button>
+          </div>
+          <div class="who-pays">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+            <p>Your recordings stay on this computer. Speech and body language are analysed here, by free Hugging Face
+              models running on your own processor. Only the transcript and the measurements go to the AI that writes
+              your feedback, which runs on your own Hugging Face account.</p>
+          </div>
+          <p class="error" id="iv-err-camera" role="alert"></p>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <span class="step">3</span>
+            <div>
+              <h2>Your five questions</h2>
+              <p class="hint">Answer as you would in a real interview. You can re-record any answer.</p>
+            </div>
+          </div>
+          <ol class="iv-questions" id="iv-questions"></ol>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <span class="step">4</span>
+            <div>
+              <h2>Free AI on your own account</h2>
+              <p class="hint">The feedback is written by a free Hugging Face model, using your own daily ZeroGPU time.</p>
+            </div>
+          </div>
+          <div class="ai-status" id="iv-ai" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span><span id="iv-ai-text">Checking Hugging Face…</span>
+          </div>
+          <p class="fine">No token yet? Add one in step 3 of the Upskilling tab; it's shared by every tab.</p>
+        </section>
+
+        <footer class="action-bar">
+          <p class="summary" id="iv-summary">Record at least one answer to get feedback.</p>
+          <button type="button" class="primary" id="iv-analyse" disabled>
+            <span>Get my feedback</span>
+            <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+          </button>
+        </footer>
+      </div>
+
+      <section class="results" id="iv-results" hidden>
+        <div class="results-head">
+          <div>
+            <h2 class="results-title">Your feedback</h2>
+            <p class="hint" id="iv-results-meta"></p>
+          </div>
+        </div>
+        <div class="search-progress" id="iv-progress" hidden>
+          <p id="iv-progress-msg">Working…</p>
+          <div class="progress big"><span></span></div>
+        </div>
+        <p class="error" id="iv-error" role="alert"></p>
+        <div id="iv-report"></div>
+      </section>
+    </section>
   </main>
 
   <!-- shared by the Upskilling and Reskilling tabs; the text that differs is set in app.js -->

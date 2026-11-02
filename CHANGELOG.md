@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Interview tab**: record yourself answering five tough non-technical questions, then get feedback
+  on your body language, articulation and mindset compared with what interviewers commonly look for.
+  Speech (Whisper), body pose (ViTPose) and smiles are analysed free on your own computer; the free
+  writer Space turns the measurements and transcript into scores, flaws with evidence, fixes and a
+  stronger answer. Recordings stay on your computer.
+
 ## 0.2.1 (2026-11-02)
 
 Type any skill in Reskilling, and upgrade from 0.1.0 safely. To upgrade, follow "Upgrading from

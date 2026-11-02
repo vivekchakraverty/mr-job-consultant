@@ -184,6 +184,32 @@ saved with the date in `data/learning/progress.json`, next to the viewed flags. 
 new set from randomly chosen parts of the transcript, and passes every earlier question as one to
 avoid.
 
+### Interview practice
+
+The **Interview** tab (`app/interview.py`, `app/youtube/media.mjs`) records you answering five common
+but tough non-technical questions: tell me about yourself, your greatest weakness, a time you failed,
+a conflict with a colleague, and why we should hire you. Each answer can be re-recorded and played
+back. While you record, the page takes a frame every 2 seconds. When you stop, it sends the video
+(kept for playback), the frames and the audio as 16 kHz WAV.
+
+"Get my feedback" then analyses every recorded answer. All of the following runs free, on this
+computer's CPU, through ONNX exports of Hugging Face models (about 240 MB, downloaded once to
+`data/interview/models/` with your Hugging Face token for higher rate limits):
+
+| what | model | measured |
+|---|---|---|
+| speech | [`onnx-community/whisper-base`](https://huggingface.co/onnx-community/whisper-base) | transcript, words per minute, filler and hedging words, pauses over 1.2 s (from loudness), length against the expected range |
+| body | [`onnx-community/vitpose-base-simple`](https://huggingface.co/onnx-community/vitpose-base-simple) | 17 body keypoints per frame: facing the camera, head and shoulder tilt, posture, hands in view, head and hand movement, framing |
+| face | [`Xenova/facial_emotions_image_detection`](https://huggingface.co/Xenova/facial_emotions_image_detection) | smiles only: small expression models read neutral faces as "angry" or "sad" too often to judge anyone on |
+
+The free writer Space then gets the transcript and these measurements, each with what is typical
+(for example 130–160 words per minute, or facing the camera 70% of the time). It compares them with
+what interviewers commonly look for in that question, and returns 1–5 scores for body language,
+articulation and mindset, the flaws with their evidence and a fix, strengths, and how a stronger
+answer would go. Quotes given as evidence are checked against the transcript, and made-up ones are
+dropped. Recordings and results stay in `data/interview/` on this computer; only the transcript and
+the measurements go to the Space.
+
 ## Job portal crawler (`portal_crawler/`)
 
 Finds job portals, big and small, records details about each site, and checks whether
