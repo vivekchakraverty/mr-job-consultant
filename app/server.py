@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
-from . import __version__, llm, matching, render, tailor
+from . import __version__, learning, llm, matching, quiz, render, tailor, videos
 from .cv_extract import extract_contact, extract_text
 from .jobpage import fetch_job_page
 from .jobs import Job, best_title, filter_jobs, load_jobs
@@ -540,6 +540,206 @@ async def _run_apply(task: dict, profile: dict, token: str | None, origin: str, 
         log.exception("apply failed")
         msg = str(e) if isinstance(e, (matching.MatchError, ValueError)) else f"{type(e).__name__}: {e}"
         task.update(stage="error", error=msg[:300])
+
+
+# ---------- upskilling & reskilling ----------
+
+LEARN_DIR = DATA_DIR / "learning"
+LEARN_FILES = LEARN_DIR / "files"
+
+
+class LearnRequest(BaseModel):
+    mode: Literal["upskill", "reskill"]
+    cv: str = Field(pattern=r"^[\w.-]+$", max_length=160)  # stored_as of a CV in data/cv
+    target: str = Field(default="", max_length=120)          # role to grow towards / field to move into
+
+
+class SkillPick(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    why: str = Field(default="", max_length=400)
+    role: str = Field(default="", max_length=120)  # reskilling: the role this skill leads to
+
+
+class CurriculumRequest(LearnRequest):
+    skill: SkillPick
+    fresh: bool = False  # write a new version instead of opening the saved one
+
+
+def _free_writer(request: Request, x_hf_token: str | None) -> llm.Writer:
+    """The free writer Space on the requester's own token. Fails fast, before a task starts."""
+    token, _ = _token(request, x_hf_token)
+    if not token:
+        raise HTTPException(400, "Add your Hugging Face token first. A free read token is enough.")
+    space_id = _ai_settings()["writer_space_id"]
+    if not space_id:
+        raise HTTPException(400, "The free writer Space isn't set up, so there's no model to ask.")
+    return llm.Writer("zerogpu", token, space_id)
+
+
+def _learn_inputs(body: LearnRequest, request: Request, x_hf_token: str | None) -> tuple[llm.Writer, str]:
+    """The free writer Space and the CV's text."""
+    path = CV_DIR / body.cv
+    if not path.is_file():
+        raise HTTPException(400, "That CV is no longer on disk. Please attach it again.")
+    cv_text = extract_text(path)
+    if not cv_text.strip():
+        raise HTTPException(400, "We couldn't read text from that CV. Try a PDF or DOCX export.")
+    return _free_writer(request, x_hf_token), cv_text
+
+
+def _start_task(work, message: str) -> dict:
+    task_id = uuid.uuid4().hex[:12]
+    TASKS[task_id] = task = {"id": task_id, "stage": "working", "message": message, "progress": 0.1,
+                             "result": None, "error": None}
+
+    async def run():
+        try:
+            task.update(stage="done", progress=1.0, message="Ready.", result=await work(task))
+        except Exception as e:
+            log.exception("learning task failed")
+            msg = str(e) if isinstance(e, (matching.MatchError, ValueError)) else f"{type(e).__name__}: {e}"
+            task.update(stage="error", error=msg[:300])
+
+    asyncio.create_task(run())
+    for old in list(TASKS)[:-20]:
+        TASKS.pop(old, None)
+    return {"id": task_id}
+
+
+@app.post("/api/learn/suggest")
+async def learn_suggest(body: LearnRequest, request: Request, x_hf_token: str | None = Header(default=None)) -> dict:
+    writer, cv_text = _learn_inputs(body, request, x_hf_token)
+
+    async def work(task):
+        task.update(progress=0.3, message=f"Reading your CV with {llm.SPACE_MODEL.split('/')[-1]} on your free ZeroGPU time… "
+                                          "(a minute or two)")
+        return await learning.suggest(writer, body.mode, cv_text, body.target.strip(), CV_DIR / "cache", LEARN_DIR / "cache")
+
+    return _start_task(work, "Getting started…")
+
+
+@app.post("/api/learn/curriculum")
+async def learn_curriculum(body: CurriculumRequest, request: Request, x_hf_token: str | None = Header(default=None)) -> dict:
+    writer, cv_text = _learn_inputs(body, request, x_hf_token)
+
+    async def work(task):
+        c = await learning.curriculum(writer, body.mode, cv_text, body.skill.model_dump(), body.target.strip(),
+                                      CV_DIR / "cache", LEARN_DIR / "cache", body.fresh,
+                                      progress=lambda share, message: task.update(progress=share, message=message))
+        task.update(progress=0.9, message="Making your files…")
+        out_dir = LEARN_FILES / c["key"]
+        out_dir.mkdir(parents=True, exist_ok=True)
+        base = render.safe_name(f"{c['skill']} - learning plan")
+        files = render.write_files(learning.curriculum_blocks(c), out_dir / base, ["pdf", "docx"])
+        return c | {"files": [{"format": p.suffix[1:], "name": p.name, "url": f"/api/learn/files/{c['key']}/{p.name}"}
+                              for p in files]}
+
+    return _start_task(work, "Getting started…")
+
+
+class VideosRequest(BaseModel):
+    skill: str = Field(min_length=2, max_length=120)
+    topics: list[str] = Field(min_length=1, max_length=40)
+
+
+@app.post("/api/learn/videos")
+async def learn_videos(body: VideosRequest) -> dict:
+    """Top YouTube videos for each topic. Free: YouTube's public web API and a sentiment model on this CPU."""
+    topics = [" ".join(t.split())[:160] for t in body.topics]
+
+    async def work(task):
+        task["videos"] = [None] * len(topics)  # filled in topic by topic, so the page can show them as they come
+        done = 0
+
+        def on_topic(i, found, error):
+            nonlocal done
+            done += 1
+            task["videos"][i] = {"videos": found, "error": error}
+            task.update(progress=round(done / len(topics), 3), message=f"Ranked videos for {done} of {len(topics)} topics…")
+
+        await videos.for_topics(topics, body.skill, LEARN_DIR / "videos", LEARN_DIR / "models", on_topic)
+        return {"sentiment_model": videos.SENTIMENT_MODEL}
+
+    return _start_task(work, "Searching YouTube…")
+
+
+PROGRESS = quiz.Progress(LEARN_DIR / "progress.json", LEARN_DIR / "quizzes")
+VIDEO_ID = r"^[\w-]{11}$"
+
+
+@app.get("/api/learn/progress")
+def learn_progress() -> dict:
+    """Which videos were watched, and every test score."""
+    return PROGRESS.all()
+
+
+class ViewedRequest(BaseModel):
+    video: str = Field(pattern=VIDEO_ID)
+    viewed: bool = True
+    title: str = Field(default="", max_length=300)
+
+
+@app.put("/api/learn/viewed")
+def learn_viewed(body: ViewedRequest) -> dict:
+    return PROGRESS.set_viewed(body.video, body.viewed, body.title)
+
+
+class QuizRequest(BaseModel):
+    video: str = Field(pattern=VIDEO_ID)
+    title: str = Field(default="", max_length=300)
+    retake: bool = False  # a new set of questions, avoiding every one asked before
+
+
+@app.post("/api/learn/quiz")
+async def learn_quiz(body: QuizRequest, request: Request, x_hf_token: str | None = Header(default=None)) -> dict:
+    writer = _free_writer(request, x_hf_token)
+
+    async def work(task):
+        task.update(progress=0.1, message="Reading the video's transcript…")
+        try:
+            t = await asyncio.to_thread(quiz.fetch_transcript, body.video, LEARN_DIR / "transcripts", videos._find_node())
+        except quiz.QuizError as e:
+            raise ValueError(str(e)) from e
+        title = body.title or t.get("title") or "this video"
+        avoid = PROGRESS.asked_before(body.video)
+        try:
+            questions = await quiz.make_questions(writer, title, t["text"], avoid, fresh=body.retake or bool(avoid),
+                                                  progress=lambda share, message: task.update(progress=share, message=message))
+        except quiz.QuizError as e:
+            raise ValueError(str(e)) from e
+        made = PROGRESS.new_quiz(body.video, title, questions, {"transcript": t["source"], "model": writer.model_used})
+        return {"quiz_id": made["id"], "title": title, "transcript": t["source"], "model": writer.model_used,
+                "questions": [{"q": q["q"], "options": q["options"]} for q in questions],  # answers stay here
+                "attempts": PROGRESS.all().get(body.video, {}).get("attempts", [])}
+
+    return _start_task(work, "Getting started…")
+
+
+class QuizAnswers(BaseModel):
+    answers: list[int | None] = Field(max_length=quiz.QUESTIONS)
+
+
+@app.post("/api/learn/quiz/{quiz_id}")
+def learn_quiz_submit(quiz_id: str, body: QuizAnswers) -> dict:
+    try:
+        return PROGRESS.grade(quiz_id, body.answers)
+    except quiz.QuizError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/api/learn/files/{folder}/{name}")
+def learn_download(folder: str, name: str) -> FileResponse:
+    path = (LEARN_FILES / folder / name).resolve()
+    if LEARN_FILES.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(404, "File not found.")
+    return FileResponse(path, filename=name)
+
+
+@app.get("/api/learn/{task_id}")
+def learn_status(task_id: str) -> dict:
+    if task_id not in TASKS:
+        raise HTTPException(404, "That request has expired. Please try again.")
+    return TASKS[task_id]
 
 
 @app.get("/favicon.ico", include_in_schema=False)

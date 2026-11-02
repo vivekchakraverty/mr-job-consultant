@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.2.0 (2026-11-02)
+
+Learn the skills the job asks for: two new tabs turn your CV into a learning plan, with the best
+videos for every topic and a test on each one. Everything new is free: AI runs on your own
+Hugging Face ZeroGPU time, and the rest runs on your computer.
+
+### Upskilling and Reskilling tabs
+- **Upskilling** suggests 8 specific skills that build on your CV for your current role, or for a
+  role you type in, each with why it pays off and what in your CV it builds on.
+- **Reskilling** suggests 3 realistic new roles, the strengths that carry over, and the skills each
+  one needs.
+- Both start from the CV saved with your job search (reusing its already-extracted facts, with no
+  new AI call), or a CV attached in the tab. Skills your CV already names are left out and listed.
+- Pick any skill for a learning plan aimed at moderate proficiency: 4–6 units, modules, concrete
+  topics, a practice task per module, a checkpoint per unit and a capstone project. Download it as
+  PDF or DOCX. Plans are saved, so reopening one is instant.
+
+### Videos for every topic
+- Each topic is a collapsible section with its top 3 YouTube videos embedded.
+- Videos are found with youtubei.js (no login, no API key) and ranked on the sentiment of their top
+  comments, likes per view, how well they match the topic, views and length. Videos with only a
+  handful of views or comments can't win on a lucky ratio.
+- Sentiment comes from `cardiffnlp/twitter-roberta-base-sentiment-latest`, run on your CPU.
+
+### Progress and tests
+- **Mark as viewed** under every video; each topic's header shows what you've watched.
+- **Take test**: yt-dlp reads the video's captions and the AI writes 10 multiple-choice questions on
+  one screen, each checked in code (four distinct options, one answer, no repeats). Answers stay on
+  your computer until you submit; you then see your score, the right answers and a one-line reason
+  for each.
+- Every score is saved with its date. **Retake** writes a fresh set from other parts of the
+  transcript and avoids every question you've already had.
+
+### Setup
+- Needs Node.js 20+ for the videos: run `npm install --prefix app/youtube` once.
+- `pip install -r requirements.txt` adds yt-dlp. The sentiment model (about 125 MB) downloads by
+  itself on first use.
+
+### Notes
+- The free model generates about 10 tokens a second on ZeroGPU, so a learning plan takes 3–4
+  minutes and a test 2–3 minutes. Each call is kept small enough to fit the writer Space's GPU
+  budget; the Space itself is unchanged.
+
 ## 0.1.0 (2026-10-30)
 
 First release.

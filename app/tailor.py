@@ -204,10 +204,15 @@ def verify_extraction(data: dict, source: Source) -> tuple[dict, list[str]]:
     return cv, report
 
 
+def cache_path(engine: str, cv_text: str, cache_dir: Path) -> Path:
+    """Where the extraction of this CV by this engine is saved."""
+    key = hashlib.sha256((engine + "\n" + cv_text).encode()).hexdigest()[:16]
+    return cache_dir / f"cv-{key}.json"
+
+
 async def structured_cv(writer: Writer, cv_text: str, cache_dir: Path) -> tuple[dict, list[str]]:
     """Extract (once per CV and engine, cached) and verify the CV's facts."""
-    key = hashlib.sha256((writer.engine + "\n" + cv_text).encode()).hexdigest()[:16]
-    cache = cache_dir / f"cv-{key}.json"
+    cache = cache_path(writer.engine, cv_text, cache_dir)
     if cache.exists():
         data = json.loads(cache.read_text(encoding="utf-8"))
     else:

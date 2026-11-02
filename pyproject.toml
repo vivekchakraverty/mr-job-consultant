@@ -1,6 +1,6 @@
 [project]
 name = "mr-job-consultant"
-version = "0.1.0"
+version = "0.2.0"
 description = "Find jobs across login-free job sites and apply with a tailored, fact-checked resume and cover letter."
 readme = "README.md"
 license = "MIT"

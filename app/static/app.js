@@ -911,6 +911,662 @@ function showApplyResult(r, pending) {
   }
 }
 
+/* ---------- upskilling & reskilling ---------- */
+
+const LEARN_TEXT = {
+  upskill: {
+    title: "Grow in the work you do",
+    lead: "We'll read your CV and suggest skills that would make you more valuable in your line of work. Pick one for a unit-by-unit learning plan.",
+    focusTitle: "Role you're growing towards",
+    focusHint: "Leave blank to build on the role your CV shows.",
+    placeholder: "e.g. Senior Content Strategist",
+    go: "Suggest skills to learn",
+    resultsTitle: "Skills worth adding",
+  },
+  reskill: {
+    title: "Move into something new",
+    lead: "We'll look at the strengths in your CV and suggest realistic new directions, with the skills each one needs. Pick a skill for a unit-by-unit learning plan.",
+    focusTitle: "Field you'd like to move into",
+    focusHint: "Leave blank and we'll suggest the moves your background suits best.",
+    placeholder: "e.g. Data analysis, UX design, Product management",
+    go: "Suggest new directions",
+    resultsTitle: "Directions that suit you",
+  },
+};
+const LEARN_CV_KEY = "learnCv";
+const learn = { cv: null, ready: false, panels: {} };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const modelName = () => (state.ai?.writer_model || "Qwen3.6-35B-A3B").split("/").pop();
+
+function apiError(data) {
+  return Array.isArray(data.detail) ? data.detail.map((d) => d.msg.replace(/^Value error, /, "")).join(" ") : data.detail;
+}
+
+/** Start a learning task on the server and follow it until it's done. */
+async function runLearnTask(url, body, onProgress) {
+  const res = await fetch(url, {
+    method: "POST", headers: { "Content-Type": "application/json", ...hfHeaders() }, body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(apiError(data) || "Couldn't start.");
+  for (;;) {
+    await sleep(1200);
+    const task = await (await fetch(`/api/learn/${data.id}`)).json();
+    if (task.detail) throw new Error(task.detail);
+    onProgress(task);
+    if (task.stage === "done") return task.result;
+    if (task.stage === "error") throw new Error(task.error);
+  }
+}
+
+async function initLearn() {
+  if (learn.ready) return;
+  learn.ready = true;
+  let profile = {};
+  try { profile = await (await fetch("/api/profile")).json(); } catch { /* no saved search yet */ }
+  try { learn.cv = JSON.parse(localStorage.getItem(LEARN_CV_KEY) || "null"); } catch { learn.cv = null; }
+  if (!learn.cv && profile.cv) learn.cv = { ...profile.cv, source: "profile" };
+
+  for (const root of $$(".learn")) {
+    const mode = root.dataset.mode;
+    const t = LEARN_TEXT[mode];
+    root.append($("#learn-template").content.cloneNode(true));
+    const q = (name) => root.querySelector(`[data-l="${name}"]`);
+    const panel = learn.panels[mode] = { mode, root, q, items: [], busy: false };
+    q("title").textContent = t.title;
+    q("lead").textContent = t.lead;
+    q("focus-title").textContent = t.focusTitle;
+    q("focus-hint").textContent = t.focusHint;
+    q("target").placeholder = t.placeholder;
+    q("target").setAttribute("aria-label", t.focusTitle);
+    q("go-label").textContent = t.go;
+    q("results-title").textContent = t.resultsTitle;
+    if (mode === "upskill" && profile.job_title) q("target").value = profile.job_title;
+
+    q("file").addEventListener("change", (e) => { uploadLearnCV(panel, e.target.files[0]); e.target.value = ""; });
+    const drop = q("drop");
+    ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+    ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+    drop.addEventListener("drop", (e) => uploadLearnCV(panel, e.dataTransfer.files[0]));
+    q("cv-replace").addEventListener("click", () => q("file").click());
+    q("token-save").addEventListener("click", () => saveLearnToken(panel));
+    q("token").addEventListener("keydown", (e) => { if (e.key === "Enter") saveLearnToken(panel); });
+    q("go").addEventListener("click", () => suggestSkills(panel));
+    q("again").addEventListener("click", () => suggestSkills(panel));
+    q("list").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-skill]");
+      if (btn) openCurriculum(panel, panel.items[Number(btn.dataset.skill)]);
+    });
+  }
+  renderLearnCV();
+}
+
+function renderLearnCV() {
+  for (const p of Object.values(learn.panels)) {
+    const cv = learn.cv;
+    p.q("drop").hidden = !!cv;
+    p.q("cv").hidden = !cv;
+    p.q("summary").textContent = cv ? `Using ${cv.filename}` : "Attach your CV to get started.";
+    if (!cv) continue;
+    p.q("cv-name").textContent = cv.filename;
+    p.q("cv-note").textContent = cv.uploading ? "Reading your CV…"
+      : cv.source === "profile" ? "The CV from your job search" : `Attached here · ${fmtSize(cv.size)}`;
+    p.root.querySelector(".card").classList.toggle("done", !cv.uploading);
+  }
+}
+
+async function uploadLearnCV(panel, file) {
+  const err = panel.q("err-cv");
+  err.textContent = "";
+  if (!file) return;
+  if (!/\.(pdf|docx?|rtf|txt)$/i.test(file.name)) return (err.textContent = "That file type won't work. Try a PDF or Word document.");
+  if (file.size > MAX_CV_BYTES) return (err.textContent = "That file is over 10 MB. Try a smaller export of your CV.");
+  const previous = learn.cv;
+  learn.cv = { filename: file.name, size: file.size, uploading: true };
+  renderLearnCV();
+  try {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch("/api/cv", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(apiError(data) || "We couldn't upload that file.");
+    learn.cv = { ...data, source: "here" };
+    try { localStorage.setItem(LEARN_CV_KEY, JSON.stringify(learn.cv)); } catch { /* this page only */ }
+    for (const p of Object.values(learn.panels)) p.q("results").hidden = true;  // old ideas were for the old CV
+    toast("CV attached. Suggestions will use this one.");
+  } catch (e) {
+    learn.cv = previous;
+    err.textContent = e.message || "Upload failed. Is the app's server still running?";
+  }
+  renderLearnCV();
+}
+
+function learnAIReady() {
+  const s = state.ai || {};
+  return s.token_origin && s.token_origin !== "none" && !s.token_error && s.writer?.exists;
+}
+
+function renderLearnAI() {
+  const s = state.ai;
+  for (const p of Object.values(learn.panels)) {
+    const box = p.q("ai");
+    const text = p.q("ai-text");
+    box.className = "ai-status";
+    if (!s) { text.textContent = "Checking Hugging Face…"; continue; }
+    const hasToken = s.token_origin !== "none" && !s.token_error;
+    p.q("token-form").hidden = hasToken;
+    if (s.token_error) {
+      box.classList.add("warn");
+      text.innerHTML = `${esc(s.token_error)}<span class="sub">Add a working token below.</span>`;
+    } else if (!hasToken) {
+      box.classList.add("warn");
+      text.innerHTML = `No Hugging Face token yet<span class="sub">The model runs on your own free account, so it needs your token.</span>`;
+    } else if (!s.writer?.exists) {
+      box.classList.add("warn");
+      text.innerHTML = `The free writer Space isn't set up<span class="sub">There's no free model to ask until it is.</span>`;
+    } else {
+      box.classList.add("ok");
+      const stage = s.writer.stage === "RUNNING" ? "ready" : "asleep, wakes up on first use (a minute or two)";
+      text.innerHTML = `${esc(modelName())} on ZeroGPU: ${stage}<span class="sub">Free. Uses ${esc(s.account.name)}'s own daily ZeroGPU time.</span>`;
+    }
+    p.root.querySelectorAll(".card")[2].classList.toggle("done", !!learnAIReady());
+  }
+}
+
+async function refreshLearnAI() {
+  if (!state.ai) await loadAIStatus();
+  renderLearnAI();
+}
+
+function saveLearnToken(panel) {
+  const input = panel.q("token");
+  const value = input.value.trim();
+  if (!/^hf_[A-Za-z0-9]{20,}$/.test(value)) return toast("That doesn't look like a Hugging Face token (they start with hf_).", true);
+  try { localStorage.setItem(TOKEN_KEY, value); } catch { /* private window: works for this page only */ }
+  input.value = "";
+  state.ai = null;
+  renderLearnAI();
+  refreshLearnAI();
+}
+
+const learnBody = (panel) => ({ mode: panel.mode, cv: learn.cv?.stored_as, target: panel.q("target").value.trim() });
+
+async function suggestSkills(panel) {
+  if (panel.busy) return;
+  if (!learn.cv?.stored_as) {
+    panel.q("err-cv").textContent = "Attach your CV first.";
+    return panel.q("drop").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (!state.ai) await refreshLearnAI();  // clicked while the status check was still running
+  if (!learnAIReady()) {
+    toast(state.ai?.writer?.exists === false ? "The free writer Space isn't set up yet." : "Add your Hugging Face token in step 3 first.", true);
+    return panel.q("ai").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  panel.busy = true;
+  const q = panel.q;
+  q("go").disabled = q("again").disabled = true;
+  q("results").hidden = false;
+  q("progress").hidden = false;
+  q("list").innerHTML = "";
+  q("results-meta").textContent = "";
+  q("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  const bar = q("progress").querySelector(".progress span");
+  bar.style.width = "8%";
+  try {
+    const r = await runLearnTask("/api/learn/suggest", learnBody(panel), (task) => {
+      q("progress-msg").textContent = task.message || "Working…";
+      bar.style.width = `${Math.max(8, Math.round((task.progress || 0) * 100))}%`;
+    });
+    renderSuggestions(panel, r);
+  } catch (e) {
+    q("list").innerHTML = `<p class="empty-state">${esc(e.message || "Something went wrong.")}</p>`;
+  } finally {
+    q("progress").hidden = true;
+    q("go").disabled = q("again").disabled = false;
+    panel.busy = false;
+  }
+}
+
+const EFFORT = { weeks: "a few weeks", months: "a few months" };
+
+function skillCard(panel, s, role = "") {
+  const i = panel.items.push({ name: s.name, why: s.why, role }) - 1;
+  const badges = [s.category, EFFORT[s.effort] && `takes ${EFFORT[s.effort]}`, s.demand && `${s.demand} demand`]
+    .filter(Boolean).map((b) => `<span class="badge">${esc(b)}</span>`).join("");
+  return `<li class="skill" style="animation-delay:${Math.min(i, 12) * 40}ms">
+    <div>
+      <h3>${esc(s.name)}</h3>
+      <p class="skill-badges">${badges}</p>
+      ${s.why ? `<p class="job-reason">${esc(s.why)}</p>` : ""}
+      ${s.builds_on ? `<p class="job-meta">Builds on: ${esc(s.builds_on)}</p>` : ""}
+    </div>
+    <button type="button" class="secondary" data-skill="${i}">Build my learning plan
+      <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
+  </li>`;
+}
+
+function renderSuggestions(panel, r) {
+  panel.items = [];
+  const q = panel.q;
+  const meta = [r.current_role && `For ${r.current_role}`, r.target && `towards ${r.target}`,
+    `by ${r.model?.split("/").pop() || modelName()}`, r.cached && "saved earlier, no GPU time used"].filter(Boolean);
+  q("results-meta").textContent = meta.join(" · ");
+  let html;
+  if (panel.mode === "upskill") {
+    html = `<ol class="job-list">${r.skills.map((s) => skillCard(panel, s)).join("")}</ol>`;
+  } else {
+    html = r.paths.map((p) => `<article class="path">
+      <div class="path-head">
+        <h3>${esc(p.role)}</h3>${p.field ? `<span class="badge matched">${esc(p.field)}</span>` : ""}
+      </div>
+      ${p.why ? `<p class="job-reason">${esc(p.why)}</p>` : ""}
+      ${p.transferable.length ? `<p class="mini-label">You already bring</p>
+        <div class="tags neutral">${p.transferable.map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}
+      <p class="mini-label">Skills to learn</p>
+      <ol class="job-list">${p.skills.map((s) => skillCard(panel, s, p.role)).join("")}</ol>
+    </article>`).join("");
+  }
+  if (r.skipped?.length) {
+    html += `<p class="fine skipped">Left out because your CV already shows them: ${r.skipped.map(esc).join(", ")}.</p>`;
+  }
+  q("list").innerHTML = html;
+}
+
+/* curriculum sheet */
+
+const cuSheet = $("#curriculum-dialog");
+const cu = { panel: null, skill: null, pending: new Map() };
+const cuKey = (panel, skill) => `${panel.mode}|${skill.name}|${skill.role}`.toLowerCase();
+
+function openCurriculum(panel, skill, fresh = false) {
+  cu.panel = panel;
+  cu.skill = skill;
+  $("#cu-title").textContent = skill.name;
+  $("#cu-meta").textContent = skill.role ? `Towards ${skill.role}` : skill.why || "";
+  $("#cu-error").textContent = "";
+  $("#cu-plan").hidden = true;
+  $("#cu-files").innerHTML = "";
+  $("#cu-fresh").hidden = true;
+  $("#cu-progress").hidden = false;
+  $("#cu-progress-msg").textContent = "Getting started…";
+  const bar = $("#cu-progress .progress span");
+  bar.style.width = "6%";
+  if (!cuSheet.open) cuSheet.showModal();
+
+  // Closing the sheet doesn't stop the work: reopening the same skill picks up the same run.
+  const key = cuKey(panel, skill);
+  let run = cu.pending.get(key);
+  if (!run || fresh) {
+    run = runLearnTask("/api/learn/curriculum", { ...learnBody(panel), skill, fresh }, (task) => {
+      if (cu.skill !== skill) return;
+      $("#cu-progress-msg").textContent = task.message || "Working…";
+      bar.style.width = `${Math.max(6, Math.round((task.progress || 0) * 100))}%`;
+    }).finally(() => { if (cu.pending.get(key) === run) cu.pending.delete(key); });
+    cu.pending.set(key, run);
+  }
+  run.then((c) => { if (cu.skill === skill) renderCurriculum(c); })
+    .catch((e) => {
+      if (cu.skill !== skill) return;
+      $("#cu-error").textContent = e.message || "Something went wrong.";
+      $("#cu-fresh").hidden = false;
+    })
+    .finally(() => { if (cu.skill === skill) $("#cu-progress").hidden = true; });
+}
+
+function renderCurriculum(c) {
+  const meta = [c.hours_total && `About ${c.hours_total} hours`, c.weeks && `over ${c.weeks} weeks`,
+    c.role && `towards ${c.role}`, `by ${c.model?.split("/").pop() || modelName()}`].filter(Boolean);
+  $("#cu-meta").textContent = meta.join(" · ");
+  $("#cu-goal").textContent = c.proficiency_goal || "Moderate proficiency: handle typical tasks on your own.";
+  $("#cu-prereq").hidden = !c.prerequisites.length;
+  $("#cu-prereq-tags").innerHTML = c.prerequisites.map((p) => `<span>${esc(p)}</span>`).join("");
+  const notes = [c.truncated && "The model ran out of room, so the last unit may be shorter. “Write a new version” usually gives a complete plan.",
+    c.missing_topics && `${c.missing_topics} module${c.missing_topics > 1 ? "s" : ""} came back without topics. “Write a new version” to try again.`,
+    c.cached && "Saved earlier, so it opened without using any GPU time."].filter(Boolean);
+  $("#cu-note").hidden = !notes.length;
+  $("#cu-note").textContent = notes.join(" ");
+  $("#cu-units").innerHTML = c.units.map((u, i) => `<li class="unit">
+    <details ${i === 0 ? "open" : ""}>
+      <summary><span class="unit-n">Unit ${i + 1}</span><span class="unit-title">${esc(u.title)}</span>
+        ${u.hours ? `<span class="unit-hours">~${u.hours} h</span>` : ""}</summary>
+      ${u.goal ? `<p class="unit-goal">${esc(u.goal)}</p>` : ""}
+      <ol class="modules">${u.modules.map((m, j) => `<li class="module">
+        <h4><span class="mod-n">${i + 1}.${j + 1}</span> ${esc(m.title)}</h4>
+        <ul class="topics">${m.topics.map((t, k) => `<li data-topic="${i}.${j}.${k}">
+          <details class="topic-box">
+            <summary><span class="topic-name">${esc(t)}</span><span class="topic-status"></span></summary>
+            <div class="v-slot"></div>
+          </details></li>`).join("")}</ul>
+        ${m.practice ? `<p class="practice"><strong>Practice:</strong> ${esc(m.practice)}</p>` : ""}
+      </li>`).join("")}</ol>
+      ${u.checkpoint ? `<p class="checkpoint"><strong>Checkpoint:</strong> ${esc(u.checkpoint)}</p>` : ""}
+    </details></li>`).join("");
+  $("#cu-capstone-wrap").hidden = !c.capstone;
+  $("#cu-capstone").textContent = c.capstone || "";
+  $("#cu-files").innerHTML = (c.files || []).map((f) => `<a class="secondary" href="${esc(f.url)}" download="${esc(f.name)}">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/></svg>${esc(f.format.toUpperCase())}</a>`).join("");
+  $("#cu-plan").hidden = false;
+  $("#cu-fresh").hidden = false;
+
+  // Videos load unit by unit as units are opened, so YouTube sees a gentle pace; a topic's players
+  // are only embedded once that topic is opened.
+  cu.curriculum = c;
+  cu.videoUnits = new Set();
+  cu.topicVideos = {};
+  $$("#cu-units .unit > details").forEach((d, i) => d.addEventListener("toggle", () => d.open && loadUnitVideos(c, i)));
+  $$("#cu-units .topic-box").forEach((d) => d.addEventListener("toggle", () => d.open && renderTopic(d.closest("[data-topic]").dataset.topic)));
+  loadProgress().then(() => loadUnitVideos(c, 0));
+}
+
+/* top YouTube videos under each topic */
+
+const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+const fmtDuration = (s) => (s ? `${Math.floor(s / 3600) ? `${Math.floor(s / 3600)}:` : ""}${
+  String(Math.floor(s / 60) % 60).padStart(Math.floor(s / 3600) ? 2 : 1, "0")}:${String(s % 60).padStart(2, "0")}` : "");
+
+/* watched videos and test scores, kept by the server in data/learning/progress.json */
+
+const learnProgress = { videos: {} };
+const videoState = (id) => learnProgress.videos[id] || { viewed: false, attempts: [] };
+const bestScore = (id) => {
+  const a = videoState(id).attempts;
+  return a.length ? a.reduce((b, x) => (x.score > b.score ? x : b)) : null;
+};
+
+async function loadProgress() {
+  try { learnProgress.videos = await (await fetch("/api/learn/progress")).json(); } catch { /* shows as not viewed */ }
+}
+
+function testLabel(id) {
+  const best = bestScore(id);
+  return best ? `Retake test · best ${best.score}/${best.total}` : "Take test";
+}
+
+function videoCard(v) {
+  const url = `https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}`;
+  const meta = [v.channel, fmtDuration(v.duration), v.views && `${compact.format(v.views)} views`,
+    v.likes && `${compact.format(v.likes)} likes`, v.published].filter(Boolean).map(esc).join(" · ");
+  const why = [v.positive_share != null ? `${v.positive_share}% positive comments` : "comments turned off",
+    v.like_rate != null && `${v.like_rate}% of viewers liked it`].filter(Boolean).join(" · ");
+  const viewed = videoState(v.id).viewed;
+  return `<li class="video" data-video="${esc(v.id)}">
+    <div class="v-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.id)}?rel=0" title="${esc(v.title)}"
+        loading="lazy" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    </div>
+    <div class="v-body">
+      <a class="v-title" href="${url}" target="_blank" rel="noopener">${esc(v.title)}</a>
+      <p class="v-meta">${meta}</p>
+      <p class="v-why"><span class="v-score" title="Ranking score out of 100">${v.score}</span>${esc(why)}</p>
+      ${v.top_comment ? `<p class="v-quote">“${esc(v.top_comment)}”</p>` : ""}
+      <div class="v-actions">
+        <button type="button" class="pill small v-viewed" data-viewed="${esc(v.id)}" aria-pressed="${viewed}">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          <span>${viewed ? "Viewed" : "Mark as viewed"}</span></button>
+        <button type="button" class="secondary small" data-test="${esc(v.id)}">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+          <span>${testLabel(v.id)}</span></button>
+      </div>
+    </div></li>`;
+}
+
+/** The status in a topic's header: how many of its videos were watched, and the best test score. */
+function topicStatus(key) {
+  const el = document.querySelector(`#cu-units [data-topic="${key}"] .topic-status`);
+  const entry = cu.topicVideos[key];
+  if (!el) return;
+  if (!entry) { el.innerHTML = `<span class="v-loading small">finding videos</span>`; return; }
+  if (!entry.videos.length) { el.textContent = "no videos"; return; }
+  const ids = entry.videos.map((v) => v.id);
+  const watched = ids.filter((id) => videoState(id).viewed).length;
+  const best = ids.map(bestScore).filter(Boolean).sort((a, b) => b.score / b.total - a.score / a.total)[0];
+  el.innerHTML = [`${ids.length} videos`, watched && `<span class="t-done">${watched} viewed</span>`,
+    best && `<span class="t-score">best test ${best.score}/${best.total}</span>`].filter(Boolean).join(" · ");
+}
+
+function renderTopic(key) {
+  const box = document.querySelector(`#cu-units [data-topic="${key}"] .topic-box`);
+  if (!box) return;
+  topicStatus(key);
+  if (!box.open) return;
+  const slot = box.querySelector(".v-slot");
+  const entry = cu.topicVideos[key];
+  if (!entry) slot.innerHTML = `<p class="v-loading">Finding the best videos…</p>`;
+  else if (!entry.videos.length) slot.innerHTML = `<p class="v-none">${esc(entry.error || "No suitable videos found for this topic.")}</p>`;
+  else if (slot.dataset.rendered !== "1") {  // don't rebuild players that may be playing
+    slot.innerHTML = `<ol class="videos">${entry.videos.map(videoCard).join("")}</ol>`;
+    slot.dataset.rendered = "1";
+  }
+}
+
+/** After a change to one video: its buttons and the status of every topic that lists it. */
+function refreshVideo(id) {
+  $$(`#cu-units [data-viewed="${CSS.escape(id)}"]`).forEach((b) => {
+    const viewed = videoState(id).viewed;
+    b.setAttribute("aria-pressed", String(viewed));
+    b.querySelector("span").textContent = viewed ? "Viewed" : "Mark as viewed";
+  });
+  $$(`#cu-units [data-test="${CSS.escape(id)}"] span`).forEach((s) => { s.textContent = testLabel(id); });
+  for (const [key, entry] of Object.entries(cu.topicVideos)) if (entry.videos.some((v) => v.id === id)) topicStatus(key);
+}
+
+async function loadUnitVideos(c, i) {
+  if (cu.curriculum !== c || cu.videoUnits.has(i) || !c.units[i]) return;
+  cu.videoUnits.add(i);
+  const keys = [];
+  const topics = [];
+  c.units[i].modules.forEach((m, j) => m.topics.forEach((t, k) => { keys.push(`${i}.${j}.${k}`); topics.push(t); }));
+  if (!topics.length) return;
+  keys.forEach(renderTopic);
+  const show = (list) => (list || []).forEach((entry, n) => {
+    if (!entry || cu.topicVideos[keys[n]] || cu.curriculum !== c) return;
+    cu.topicVideos[keys[n]] = entry;
+    renderTopic(keys[n]);
+  });
+  try {
+    // the last progress call carries the finished task, so every topic is shown by the time this returns
+    await runLearnTask("/api/learn/videos", { skill: c.skill, topics }, (task) => show(task.videos));
+  } catch (e) {
+    cu.videoUnits.delete(i);  // let opening the unit again retry
+    keys.forEach((key) => {
+      if (!cu.topicVideos[key] && cu.curriculum === c) {
+        cu.topicVideos[key] = { videos: [], error: e.message || "Couldn't reach YouTube." };
+        renderTopic(key);
+        delete cu.topicVideos[key];
+      }
+    });
+  }
+}
+
+const findVideo = (id) => Object.values(cu.topicVideos).flatMap((e) => e.videos).find((v) => v.id === id);
+
+$("#cu-units").addEventListener("click", async (e) => {
+  const viewedBtn = e.target.closest("[data-viewed]");
+  const testBtn = e.target.closest("[data-test]");
+  if (viewedBtn) {
+    const id = viewedBtn.dataset.viewed;
+    const viewed = viewedBtn.getAttribute("aria-pressed") !== "true";
+    try {
+      const res = await fetch("/api/learn/viewed", { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video: id, viewed, title: findVideo(id)?.title || "" }) });
+      if (!res.ok) throw new Error();
+      learnProgress.videos[id] = await res.json();
+      refreshVideo(id);
+    } catch {
+      toast("Couldn't save that. Is the app's server still running?", true);
+    }
+  } else if (testBtn) {
+    const v = findVideo(testBtn.dataset.test);
+    if (v) openQuiz(v, bestScore(v.id) !== null);
+  }
+});
+
+/* test sheet: 10 questions from the video's transcript, graded on the server */
+
+const qzSheet = $("#quiz-dialog");
+const qz = { video: null, quiz: null, pending: new Map(), submitted: false };
+
+function quizAttempts(id) {
+  const attempts = videoState(id).attempts;
+  $("#qz-attempts").hidden = !attempts.length;
+  $("#qz-attempts-list").innerHTML = attempts.map((a, n) => `<li><span>Attempt ${n + 1}</span>
+    <strong>${a.score}/${a.total}</strong><span class="fine">${esc(new Date(a.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }))}</span></li>`).join("");
+}
+
+function openQuiz(v, retake = false) {
+  qz.video = v;
+  qz.quiz = null;
+  qz.submitted = false;
+  $("#qz-title").textContent = `Test: ${v.title}`;
+  $("#qz-meta").textContent = `${v.channel} · 10 questions from the video's transcript`;
+  $("#qz-error").textContent = "";
+  $("#qz-form").hidden = true;
+  $("#qz-result").hidden = true;
+  $("#qz-submit").hidden = true;
+  $("#qz-retake").hidden = true;
+  $("#qz-progress").hidden = false;
+  $("#qz-progress-msg").textContent = "Getting started…";
+  const bar = $("#qz-progress .progress span");
+  bar.style.width = "5%";
+  quizAttempts(v.id);
+  if (!qzSheet.open) qzSheet.showModal();
+
+  const key = `${v.id}|${retake}`;
+  let run = qz.pending.get(key);
+  if (!run) {
+    run = (async () => {
+      if (!state.ai) await refreshLearnAI();
+      if (!learnAIReady()) throw new Error("Add your Hugging Face token in step 3 of the Upskilling tab first. The test is written by the free AI on your account.");
+      return runLearnTask("/api/learn/quiz", { video: v.id, title: v.title, retake }, (task) => {
+        if (qz.video !== v) return;
+        $("#qz-progress-msg").textContent = task.message || "Working…";
+        bar.style.width = `${Math.max(5, Math.round((task.progress || 0) * 100))}%`;
+      });
+    })().finally(() => { if (qz.pending.get(key) === run) qz.pending.delete(key); });
+    qz.pending.set(key, run);
+  }
+  run.then((quiz) => { if (qz.video === v) renderQuiz(quiz); })
+    .catch((e) => {
+      if (qz.video !== v) return;
+      $("#qz-error").textContent = e.message || "Something went wrong.";
+      $("#qz-retake").hidden = false;
+      $("#qz-retake span").textContent = "Try again";
+    })
+    .finally(() => { if (qz.video === v) $("#qz-progress").hidden = true; });
+}
+
+function renderQuiz(quiz) {
+  qz.quiz = quiz;
+  $("#qz-meta").textContent = `${qz.video.channel} · ${quiz.questions.length} questions from the video's ${
+    quiz.transcript === "captions" ? "captions" : "automatic captions"} · by ${quiz.model?.split("/").pop() || modelName()}`;
+  $("#qz-questions").innerHTML = quiz.questions.map((q, n) => `<li class="qz-q" data-q="${n}">
+    <p class="qz-text">${esc(q.q)}</p>
+    <div class="qz-options" role="radiogroup" aria-label="Question ${n + 1}">
+      ${q.options.map((o, k) => `<label class="qz-opt"><input type="radio" name="q${n}" value="${k}"><span>${esc(o)}</span></label>`).join("")}
+    </div>
+    <p class="qz-why" hidden></p>
+  </li>`).join("");
+  $("#qz-form").hidden = false;
+  $("#qz-submit").hidden = false;
+  $("#qz-submit").disabled = false;
+  $("#qz-retake").hidden = true;
+  $("#qz-form").scrollTop = 0;
+}
+
+$("#qz-submit").addEventListener("click", async () => {
+  if (!qz.quiz || qz.submitted) return;
+  const answers = qz.quiz.questions.map((_, n) => {
+    const picked = document.querySelector(`#qz-questions input[name="q${n}"]:checked`);
+    return picked ? Number(picked.value) : null;
+  });
+  const left = answers.filter((a) => a === null).length;
+  if (left) {
+    $("#qz-error").textContent = `Answer all ${answers.length} questions first (${left} to go).`;
+    document.querySelector(`#qz-questions [data-q="${answers.indexOf(null)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  $("#qz-error").textContent = "";
+  $("#qz-submit").disabled = true;
+  try {
+    const res = await fetch(`/api/learn/quiz/${qz.quiz.quiz_id}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers }) });
+    const r = await res.json();
+    if (!res.ok) throw new Error(apiError(r) || "Couldn't grade the test.");
+    qz.submitted = true;
+    learnProgress.videos[qz.video.id] = r.video;
+    showGrade(r);
+    refreshVideo(qz.video.id);
+  } catch (e) {
+    $("#qz-error").textContent = e.message;
+    $("#qz-submit").disabled = false;
+  }
+});
+
+function showGrade(r) {
+  r.results.forEach((res, n) => {
+    const li = document.querySelector(`#qz-questions [data-q="${n}"]`);
+    li.classList.add(res.correct ? "right" : "wrong");
+    li.querySelectorAll(".qz-opt").forEach((opt, k) => {
+      opt.querySelector("input").disabled = true;
+      opt.classList.toggle("is-answer", k === res.answer);
+      opt.classList.toggle("is-wrong", k === res.chosen && !res.correct);
+    });
+    const why = li.querySelector(".qz-why");
+    why.hidden = !res.why;
+    why.textContent = res.why;
+  });
+  const pct = r.score / r.total;
+  $("#qz-score").textContent = `${r.score}/${r.total}`;
+  $("#qz-verdict").textContent = pct >= 0.8 ? "Well done: you've got this video's ideas."
+    : pct >= 0.5 ? "Good start. Rewatch the parts you missed, then retake with new questions."
+      : "Worth another watch before retaking.";
+  $("#qz-result").hidden = false;
+  quizAttempts(qz.video.id);
+  $("#qz-submit").hidden = true;
+  $("#qz-retake").hidden = false;
+  $("#qz-retake span").textContent = "Retake with new questions";
+  $("#qz-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+$("#qz-retake").addEventListener("click", () => { if (qz.video) openQuiz(qz.video, true); });
+$("#qz-close").addEventListener("click", () => qzSheet.close());
+qzSheet.addEventListener("click", (e) => { if (e.target === qzSheet) qzSheet.close(); });
+
+$("#cu-close").addEventListener("click", () => cuSheet.close());
+cuSheet.addEventListener("click", (e) => { if (e.target === cuSheet) cuSheet.close(); });
+$("#cu-fresh").addEventListener("click", () => { if (cu.panel && cu.skill) openCurriculum(cu.panel, cu.skill, true); });
+
+/* ---------- tabs ---------- */
+
+const TAB_HASH = { jobs: "", upskill: "#upskilling", reskill: "#reskilling" };
+
+function showTab(name) {
+  $$("[role=tab]").forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+    $(`#${t.getAttribute("aria-controls")}`).hidden = !on;
+  });
+  if (name !== "jobs") initLearn().then(refreshLearnAI);
+}
+
+$$("[role=tab]").forEach((t) => t.addEventListener("click", () => {
+  history.replaceState(null, "", TAB_HASH[t.dataset.tab] || location.pathname);
+  showTab(t.dataset.tab);
+}));
+$(".tabs").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const tabs = $$("[role=tab]");
+  const i = tabs.indexOf(document.activeElement);
+  const next = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+  next.focus();
+  next.click();
+});
+const tabFromHash = () => Object.keys(TAB_HASH).find((k) => TAB_HASH[k] && TAB_HASH[k] === location.hash) || "jobs";
+window.addEventListener("hashchange", () => showTab(tabFromHash()));
+showTab(tabFromHash());
+
 /* ---------- summary, progress, save ---------- */
 
 function refresh() {
@@ -926,7 +1582,7 @@ function refresh() {
       || !!details.notice || details.years_experience !== null,
     how: true,  // always has a choice (CV matching by default)
   };
-  $$(".card").forEach((card, i) => card.classList.toggle("done", Object.values(done)[i]));
+  $$("#profile .card").forEach((card, i) => card.classList.toggle("done", Object.values(done)[i]));
 
   const required = [done.title, done.where, done.type, done.schedule, done.cv];
   if (!required.some(Boolean)) {

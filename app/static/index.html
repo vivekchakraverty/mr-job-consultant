@@ -24,9 +24,24 @@
         <img class="brand-icon" src="/static/icon.svg" alt="" width="72" height="72">
         <p class="brand-name">Mr. Job Consultant</p>
       </div>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button type="button" role="tab" id="tab-jobs" aria-controls="panel-jobs" aria-selected="true" data-tab="jobs">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>Find jobs
+        </button>
+        <button type="button" role="tab" id="tab-upskill" aria-controls="panel-upskill" aria-selected="false" data-tab="upskill" tabindex="-1">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M4 18l5-5 4 4 7-8"/><path d="M15 9h5v5"/></svg>Upskilling
+        </button>
+        <button type="button" role="tab" id="tab-reskill" aria-controls="panel-reskill" aria-selected="false" data-tab="reskill" tabindex="-1">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M4 7h11l-3-3M20 17H9l3 3"/></svg>Reskilling
+        </button>
+      </nav>
+    </header>
+
+    <div id="panel-jobs" role="tabpanel" aria-labelledby="tab-jobs">
+    <div class="intro panel-intro">
       <h1>Let's find your next role</h1>
       <p>Tell us what you're after, at your own pace. We'll use it to search the job sites and fill in their forms for you.</p>
-    </header>
+    </div>
 
     <form id="profile" novalidate>
       <!-- 1. Job title -->
@@ -363,7 +378,195 @@
       <p id="backend-note" class="soft-note" hidden></p>
       <ol id="job-list" class="job-list"></ol>
     </section>
+    </div>
+
+    <section id="panel-upskill" class="learn" role="tabpanel" aria-labelledby="tab-upskill" data-mode="upskill" hidden></section>
+    <section id="panel-reskill" class="learn" role="tabpanel" aria-labelledby="tab-reskill" data-mode="reskill" hidden></section>
   </main>
+
+  <!-- shared by the Upskilling and Reskilling tabs; the text that differs is set in app.js -->
+  <template id="learn-template">
+    <div class="intro panel-intro">
+      <h1 data-l="title"></h1>
+      <p data-l="lead"></p>
+    </div>
+
+    <div class="learn-cards">
+      <section class="card">
+        <div class="card-head">
+          <span class="step">1</span>
+          <div>
+            <h2>Your CV</h2>
+            <p class="hint">We read your experience and skills from it, so suggestions start from where you are.</p>
+          </div>
+        </div>
+        <label class="dropzone" data-l="drop">
+          <input type="file" accept=".pdf,.docx,.doc,.rtf,.txt" class="visually-hidden" data-l="file">
+          <svg class="ico xl" viewBox="0 0 24 24"><path d="M12 16V5M7.5 9.5 12 5l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <span class="drop-title">Drop your CV here, or <u>browse</u></span>
+          <span class="drop-sub">PDF, Word, RTF or text · up to 10 MB</span>
+        </label>
+        <div class="cv-file" data-l="cv" hidden>
+          <div class="file-ico" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
+          </div>
+          <div class="file-meta">
+            <span class="file-name" data-l="cv-name"></span>
+            <span class="file-size" data-l="cv-note"></span>
+          </div>
+          <button type="button" class="link-btn" data-l="cv-replace">Use a different CV</button>
+        </div>
+        <p class="error" data-l="err-cv" role="alert"></p>
+      </section>
+
+      <section class="card" data-optional>
+        <div class="card-head">
+          <span class="step">2</span>
+          <div>
+            <h2><span data-l="focus-title"></span> <span class="tag">Optional</span></h2>
+            <p class="hint" data-l="focus-hint"></p>
+          </div>
+        </div>
+        <input class="field" type="text" maxlength="120" data-l="target" aria-label="">
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="step">3</span>
+          <div>
+            <h2>Free AI on your own account</h2>
+            <p class="hint">Runs on a free Hugging Face model, using your own daily ZeroGPU time. Nobody is billed.</p>
+          </div>
+        </div>
+        <div class="ai-status" data-l="ai" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span><span data-l="ai-text">Checking Hugging Face…</span>
+        </div>
+        <div class="token-form" data-l="token-form" hidden>
+          <label class="mini-label">Your Hugging Face token
+            <div class="token-row">
+              <input class="field" type="password" autocomplete="off" spellcheck="false" placeholder="hf_…" data-l="token">
+              <button type="button" class="secondary" data-l="token-save">Use token</button>
+            </div>
+          </label>
+          <p class="fine">A free <em>read</em> token is enough. Create one at
+            <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co/settings/tokens</a>.
+            It stays in this browser and is shared with the Find jobs tab.</p>
+        </div>
+      </section>
+
+      <footer class="action-bar">
+        <p class="summary" data-l="summary"></p>
+        <button type="button" class="primary" data-l="go">
+          <span data-l="go-label"></span>
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+        </button>
+      </footer>
+    </div>
+
+    <section class="results" data-l="results" hidden>
+      <div class="results-head">
+        <div>
+          <h2 class="results-title" data-l="results-title"></h2>
+          <p class="hint" data-l="results-meta"></p>
+        </div>
+        <button type="button" class="secondary" data-l="again">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>Suggest again
+        </button>
+      </div>
+      <div class="search-progress" data-l="progress" hidden>
+        <p data-l="progress-msg">Working…</p>
+        <div class="progress big"><span></span></div>
+      </div>
+      <div data-l="list" class="skill-list"></div>
+    </section>
+  </template>
+
+  <dialog id="curriculum-dialog" class="sheet" aria-labelledby="cu-title">
+    <div class="sheet-head">
+      <div>
+        <h2 id="cu-title">Skill</h2>
+        <p id="cu-meta" class="hint"></p>
+      </div>
+      <button type="button" class="icon-btn" id="cu-close" aria-label="Close">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <section class="sheet-section" id="cu-progress" hidden>
+        <p id="cu-progress-msg">Getting started…</p>
+        <div class="progress big"><span></span></div>
+      </section>
+      <div id="cu-plan" hidden>
+        <section class="sheet-section">
+          <div class="honesty">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3l3 6 6 .9-4.5 4.2 1 6.4L12 17.5 6.5 20.5l1-6.4L3 9.9 9 9z"/></svg>
+            <p><strong>Goal:</strong> <span id="cu-goal"></span></p>
+          </div>
+          <div id="cu-prereq" hidden>
+            <p class="mini-label">Before you start</p>
+            <div class="tags neutral" id="cu-prereq-tags"></div>
+          </div>
+          <p id="cu-note" class="soft-note small" hidden></p>
+          <p class="fine">Open a topic to watch its top 3 YouTube videos, ranked by how positive the top comments are
+            (scored on this computer by cardiffnlp/twitter-roberta-base-sentiment-latest), likes per view, how well
+            the video matches the topic, and views. Mark each video as viewed, and take a 10-question test on it.</p>
+        </section>
+        <ol id="cu-units" class="units"></ol>
+        <section class="sheet-section" id="cu-capstone-wrap" hidden>
+          <h3>Capstone project</h3>
+          <p id="cu-capstone" class="capstone"></p>
+        </section>
+      </div>
+      <p class="error" id="cu-error" role="alert"></p>
+    </div>
+    <div class="sheet-foot">
+      <div class="files inline" id="cu-files"></div>
+      <button type="button" class="secondary" id="cu-fresh">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>Write a new version
+      </button>
+    </div>
+  </dialog>
+
+  <dialog id="quiz-dialog" class="sheet quiz" aria-labelledby="qz-title">
+    <div class="sheet-head">
+      <div>
+        <h2 id="qz-title">Test</h2>
+        <p id="qz-meta" class="hint"></p>
+      </div>
+      <button type="button" class="icon-btn" id="qz-close" aria-label="Close">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <section class="sheet-section" id="qz-progress" hidden>
+        <p id="qz-progress-msg">Getting started…</p>
+        <div class="progress big"><span></span></div>
+        <p class="fine">The transcript is read with yt-dlp, then the free AI on your own Hugging Face account
+          writes the questions. Answers stay on this computer until you submit.</p>
+      </section>
+      <section class="sheet-section qz-result" id="qz-result" hidden>
+        <p class="qz-score" id="qz-score"></p>
+        <p id="qz-verdict"></p>
+      </section>
+      <form id="qz-form" hidden onsubmit="return false">
+        <ol id="qz-questions" class="qz-list"></ol>
+      </form>
+      <section class="sheet-section" id="qz-attempts" hidden>
+        <h3>Your scores on this video</h3>
+        <ol id="qz-attempts-list" class="qz-attempts"></ol>
+      </section>
+      <p class="error" id="qz-error" role="alert"></p>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="secondary" id="qz-retake" hidden>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg><span>Retake with new questions</span>
+      </button>
+      <button type="button" class="primary" id="qz-submit" hidden>
+        <span>Submit answers</span>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </dialog>
 
   <dialog id="apply-dialog" class="sheet" aria-labelledby="ap-title">
     <div class="sheet-head">
