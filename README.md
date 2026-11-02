@@ -20,6 +20,11 @@ everything (Python, Node.js and all packages), so there's nothing else to instal
 3. Your data is kept in `%APPDATA%\MrJobConsultant` (Windows), `~/Library/Application Support/MrJobConsultant`
    (macOS) or `~/.local/share/MrJobConsultant` (Linux), so a new version can replace the folder.
 
+**Updates.** When a newer release is out, the app shows a banner with the download for your system
+(or, when running from source, a link to the update steps below). It never installs anything by
+itself. The check is one request to GitHub's releases API at most every 12 hours; turn it off with
+`"check_for_updates": false` in `ai_settings.json` in your data folder, or set `MRJC_NO_UPDATE_CHECK=1`.
+
 The builds aren't code-signed yet. On **Windows**, SmartScreen may warn: choose *More info → Run
 anyway*. On **macOS**, clear the download flag once before the first run:
 `xattr -dr com.apple.quarantine ~/Downloads/MrJobConsultant` (adjust the path), then open it. On

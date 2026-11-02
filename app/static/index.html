@@ -40,6 +40,18 @@
       </nav>
     </header>
 
+    <aside id="update-banner" class="update-banner" role="status" aria-live="polite" hidden>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/></svg>
+      <p><strong id="update-title"></strong> <span id="update-sub"></span></p>
+      <div class="update-actions">
+        <a class="primary small" id="update-go" target="_blank" rel="noopener"></a>
+        <a class="link-btn" id="update-notes" target="_blank" rel="noopener">What's new</a>
+        <button type="button" class="icon-btn" id="update-dismiss" aria-label="Dismiss until the next version">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </aside>
+
     <div id="panel-jobs" role="tabpanel" aria-labelledby="tab-jobs">
     <div class="intro panel-intro">
       <h1>Let's find your next role</h1>

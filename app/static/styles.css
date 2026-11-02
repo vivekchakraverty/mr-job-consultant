@@ -504,6 +504,17 @@ button:focus-visible, .dropzone:focus-within { outline: none; box-shadow: var(--
 .report ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); display: grid; gap: 4px; }
 a.secondary { text-decoration: none; }
 
+/* "a new version is out" */
+.update-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 22px; padding: 14px 16px;
+  border-radius: var(--radius-sm); border: 1.5px solid var(--accent); background: var(--accent-soft);
+  animation: rise .25s ease-out;
+}
+.update-banner > .ico { color: var(--accent-strong); flex: none; }
+.update-banner p { margin: 0; flex: 1 1 260px; font-size: 14.5px; }
+.update-actions { display: flex; align-items: center; gap: 6px; }
+.update-actions .primary.small { padding: 8px 14px; font-size: 14px; text-decoration: none; }
+
 /* tabs */
 .tabs {
   display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px;

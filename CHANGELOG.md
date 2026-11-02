@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Update notice**: when a newer release is out, a banner says so, with the download for your
+  system (desktop builds) or a link to the update steps (running from source), and what's new.
+  Dismiss it until the next version. The app checks GitHub's latest release at most every 12 hours,
+  shows nothing if GitHub can't be reached, never installs anything by itself, and can be turned off
+  (`"check_for_updates": false` in `ai_settings.json`, or `MRJC_NO_UPDATE_CHECK=1`).
+
 ## 0.3.0 (2026-11-02)
 
 Practise tough interview questions on camera and get feedback, and run the app without installing

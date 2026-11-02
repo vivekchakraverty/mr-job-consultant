@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
-from . import __version__, interview, learning, llm, matching, quiz, render, tailor, videos
+from . import __version__, interview, learning, llm, matching, quiz, render, tailor, updates, videos
 from .cv_extract import extract_contact, extract_text
 from .jobpage import fetch_job_page
 from .jobs import Job, best_title, filter_jobs, load_jobs
@@ -142,6 +142,13 @@ def _portal_summary(profile: SearchProfile) -> dict:
         "matching": sum(fits(p) for p in portals),
         "remote_focused": sum("remote" in (p.get("niches") or []) for p in portals),
     }
+
+
+@app.get("/api/update")
+async def update_status() -> dict:
+    """Whether a newer release is out, and how to get it on this install (shown as a banner)."""
+    return await asyncio.to_thread(updates.check, __version__, DATA_DIR / "update_check.json",
+                                   _ai_settings().get("check_for_updates", True))
 
 
 @app.get("/api/version")
