@@ -1,4 +1,5 @@
-"""Upskilling and reskilling: skill ideas read from the CV, and a curriculum for any skill picked.
+"""Upskilling and reskilling: skill ideas read from the CV (upskilling), and a curriculum for any
+skill, whether picked from those ideas or typed in (reskilling).
 
 Everything runs on the free writer Space, on the caller's own daily ZeroGPU quota, so nothing is
 billed to anyone. The CV the job search already processed is reused (its verified facts, when the
@@ -28,20 +29,6 @@ Return JSON only:
 {"current_role": "", "skills": [{"name": "", "category": "technical|tool|domain|soft",
   "why": "one sentence on why it pays off for this person", "builds_on": "",
   "effort": "weeks|months", "demand": "high|growing|steady"}]}"""
-
-SUGGEST_RESKILL = """You are a career-change coach who follows what employers hire for today. Read the CV
-and suggest realistic moves into a DIFFERENT role or field, using strengths the person already has.
-Rules:
-- 3 target roles that people with this background really move into, and that are hiring now.
-  If a FIELD is given, every role must be in that field.
-- "transferable": 2 or 3 strengths from the CV that carry over, in a few words each.
-- "skills": the 3 or 4 skills they would most need to learn for that role, specific
-  ("Python for data analysis", not "technology"), and not ones the CV already shows.
-- Keep every sentence short.
-Return JSON only:
-{"current_role": "", "paths": [{"role": "", "field": "", "why": "one sentence",
-  "transferable": [""], "skills": [{"name": "", "category": "technical|tool|domain|soft",
-  "why": "one sentence", "effort": "weeks|months"}]}]}"""
 
 OUTLINE_PROMPT = """You are an expert practitioner and instructional designer. Outline a self-study
 curriculum that takes this learner to MODERATE PROFICIENCY in the SKILL: able to handle typical
@@ -214,17 +201,15 @@ def _skills(values, source: tailor.Source, limit: int, skipped: list[str]) -> li
     return out[:limit]
 
 
-async def suggest(writer: Writer, mode: str, cv_text: str, target: str, cv_cache: Path, cache_dir: Path) -> dict:
-    key = _key("suggest", mode, target.lower(), cv_text)
+async def suggest(writer: Writer, cv_text: str, target: str, cv_cache: Path, cache_dir: Path) -> dict:
+    """Upskilling ideas. (Reskilling has no suggestions: the person names the skill they want.)"""
+    key = _key("suggest", "upskill", target.lower(), cv_text)
     if saved := _load(cache_dir, key):
         return saved | {"cached": True}
     cv = processed_cv(cv_text, cv_cache)
-    if mode == "upskill":
-        ask = f"ROLE THEY ARE GROWING TOWARDS: {target}" if target else "Use the role their CV shows."
-    else:
-        ask = f"FIELD THEY WANT TO MOVE INTO: {target}" if target else "No field given: suggest the most realistic moves."
+    ask = f"ROLE THEY ARE GROWING TOWARDS: {target}" if target else "Use the role their CV shows."
     reply = await writer.chat([
-        {"role": "system", "content": SUGGEST_UPSKILL if mode == "upskill" else SUGGEST_RESKILL},
+        {"role": "system", "content": SUGGEST_UPSKILL},
         {"role": "user", "content": f"{_cv_for_prompt(cv_text, cv)}\n\n{ask}"},
     ], max_tokens=SPACE_BUDGET)
     data, _ = _read_reply(reply)
@@ -232,23 +217,10 @@ async def suggest(writer: Writer, mode: str, cv_text: str, target: str, cv_cache
         raise ValueError("The model's suggestions couldn't be read. Please try again.")
 
     source, skipped = tailor.Source(cv_text), []
-    result = {"mode": mode, "target": target, "current_role": _s(data.get("current_role"), 120),
-              "used_processed_cv": bool(cv), "model": writer.model_used}
-    if mode == "upskill":
-        result["skills"] = _skills(data.get("skills"), source, 10, skipped)
-        found = bool(result["skills"])
-    else:
-        paths = []
-        for p in data.get("paths") or []:
-            if not isinstance(p, dict) or not _s(p.get("role")):
-                continue
-            skills = _skills(p.get("skills"), source, 5, skipped)
-            if skills:
-                paths.append({"role": _s(p.get("role"), 100), "field": _s(p.get("field"), 60), "why": _s(p.get("why")),
-                              "transferable": _strings(p.get("transferable"), 4, 100), "skills": skills})
-        result["paths"] = paths[:4]
-        found = bool(paths)
-    if not found:
+    result = {"mode": "upskill", "target": target, "current_role": _s(data.get("current_role"), 120),
+              "used_processed_cv": bool(cv), "model": writer.model_used,
+              "skills": _skills(data.get("skills"), source, 10, skipped)}
+    if not result["skills"]:
         raise ValueError("The model didn't suggest anything usable. Please try again.")
     result["skipped"] = list(dict.fromkeys(skipped))
     _save(cache_dir, key, result)

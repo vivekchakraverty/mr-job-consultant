@@ -608,12 +608,15 @@ def _start_task(work, message: str) -> dict:
 
 @app.post("/api/learn/suggest")
 async def learn_suggest(body: LearnRequest, request: Request, x_hf_token: str | None = Header(default=None)) -> dict:
+    """Upskilling ideas from the CV. Reskilling has none: the person types the skill they want."""
+    if body.mode != "upskill":
+        raise HTTPException(400, "Skill ideas are for Upskilling. In Reskilling, type the skill you want to learn.")
     writer, cv_text = _learn_inputs(body, request, x_hf_token)
 
     async def work(task):
         task.update(progress=0.3, message=f"Reading your CV with {llm.SPACE_MODEL.split('/')[-1]} on your free ZeroGPU time… "
                                           "(a minute or two)")
-        return await learning.suggest(writer, body.mode, cv_text, body.target.strip(), CV_DIR / "cache", LEARN_DIR / "cache")
+        return await learning.suggest(writer, cv_text, body.target.strip(), CV_DIR / "cache", LEARN_DIR / "cache")
 
     return _start_task(work, "Getting started…")
 

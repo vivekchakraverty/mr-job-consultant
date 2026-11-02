@@ -925,12 +925,12 @@ const LEARN_TEXT = {
   },
   reskill: {
     title: "Move into something new",
-    lead: "We'll look at the strengths in your CV and suggest realistic new directions, with the skills each one needs. Pick a skill for a unit-by-unit learning plan.",
-    focusTitle: "Field you'd like to move into",
-    focusHint: "Leave blank and we'll suggest the moves your background suits best.",
-    placeholder: "e.g. Data analysis, UX design, Product management",
-    go: "Suggest new directions",
-    resultsTitle: "Directions that suit you",
+    lead: "Name the skill you want to learn. We'll build a unit-by-unit learning plan that starts from your background, with the best videos for every topic and a test on each.",
+    focusTitle: "Skill you want to learn",
+    focusHint: "Any skill, as specific as you like.",
+    placeholder: "e.g. Python for data analysis, UX research, Bookkeeping",
+    go: "Build my learning plan",
+    resultsTitle: "",
   },
 };
 const LEARN_CV_KEY = "learnCv";
@@ -982,6 +982,17 @@ async function initLearn() {
     q("go-label").textContent = t.go;
     q("results-title").textContent = t.resultsTitle;
     if (mode === "upskill" && profile.job_title) q("target").value = profile.job_title;
+    if (mode === "reskill") {  // the person names the skill, so step 2 is required, not optional
+      const card = q("focus-title").closest(".card");
+      card.removeAttribute("data-optional");
+      card.querySelector(".tag").remove();
+      q("target").maxLength = 120;
+      q("target").addEventListener("keydown", (e) => { if (e.key === "Enter") buildTypedSkill(panel); });
+      q("target").addEventListener("input", () => {
+        q("err-skill").textContent = "";
+        card.classList.toggle("done", q("target").value.trim().length >= 2);
+      });
+    }
 
     q("file").addEventListener("change", (e) => { uploadLearnCV(panel, e.target.files[0]); e.target.value = ""; });
     const drop = q("drop");
@@ -991,7 +1002,7 @@ async function initLearn() {
     q("cv-replace").addEventListener("click", () => q("file").click());
     q("token-save").addEventListener("click", () => saveLearnToken(panel));
     q("token").addEventListener("keydown", (e) => { if (e.key === "Enter") saveLearnToken(panel); });
-    q("go").addEventListener("click", () => suggestSkills(panel));
+    q("go").addEventListener("click", () => (mode === "upskill" ? suggestSkills(panel) : buildTypedSkill(panel)));
     q("again").addEventListener("click", () => suggestSkills(panel));
     q("list").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-skill]");
@@ -1089,19 +1100,39 @@ function saveLearnToken(panel) {
   refreshLearnAI();
 }
 
-const learnBody = (panel) => ({ mode: panel.mode, cv: learn.cv?.stored_as, target: panel.q("target").value.trim() });
+// In Reskilling the box holds the skill itself, not a role to aim at.
+const learnBody = (panel) => ({ mode: panel.mode, cv: learn.cv?.stored_as,
+                                target: panel.mode === "upskill" ? panel.q("target").value.trim() : "" });
 
-async function suggestSkills(panel) {
-  if (panel.busy) return;
+/** A CV and a working free model, or say what's missing. */
+async function learnCanStart(panel) {
   if (!learn.cv?.stored_as) {
     panel.q("err-cv").textContent = "Attach your CV first.";
-    return panel.q("drop").scrollIntoView({ behavior: "smooth", block: "center" });
+    panel.q("drop").scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
   }
   if (!state.ai) await refreshLearnAI();  // clicked while the status check was still running
   if (!learnAIReady()) {
     toast(state.ai?.writer?.exists === false ? "The free writer Space isn't set up yet." : "Add your Hugging Face token in step 3 first.", true);
-    return panel.q("ai").scrollIntoView({ behavior: "smooth", block: "center" });
+    panel.q("ai").scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
   }
+  return true;
+}
+
+/** Reskilling: a learning plan for the skill the person typed. */
+async function buildTypedSkill(panel) {
+  const name = panel.q("target").value.trim().replace(/\s+/g, " ");
+  if (name.length < 2) {
+    panel.q("err-skill").textContent = "Type the skill you want to learn.";
+    panel.q("target").focus();
+    return;
+  }
+  if (await learnCanStart(panel)) openCurriculum(panel, { name, why: "", role: "" });
+}
+
+async function suggestSkills(panel) {
+  if (panel.busy || !(await learnCanStart(panel))) return;
   panel.busy = true;
   const q = panel.q;
   q("go").disabled = q("again").disabled = true;
@@ -1151,21 +1182,7 @@ function renderSuggestions(panel, r) {
   const meta = [r.current_role && `For ${r.current_role}`, r.target && `towards ${r.target}`,
     `by ${r.model?.split("/").pop() || modelName()}`, r.cached && "saved earlier, no GPU time used"].filter(Boolean);
   q("results-meta").textContent = meta.join(" · ");
-  let html;
-  if (panel.mode === "upskill") {
-    html = `<ol class="job-list">${r.skills.map((s) => skillCard(panel, s)).join("")}</ol>`;
-  } else {
-    html = r.paths.map((p) => `<article class="path">
-      <div class="path-head">
-        <h3>${esc(p.role)}</h3>${p.field ? `<span class="badge matched">${esc(p.field)}</span>` : ""}
-      </div>
-      ${p.why ? `<p class="job-reason">${esc(p.why)}</p>` : ""}
-      ${p.transferable.length ? `<p class="mini-label">You already bring</p>
-        <div class="tags neutral">${p.transferable.map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}
-      <p class="mini-label">Skills to learn</p>
-      <ol class="job-list">${p.skills.map((s) => skillCard(panel, s, p.role)).join("")}</ol>
-    </article>`).join("");
-  }
+  let html = `<ol class="job-list">${r.skills.map((s) => skillCard(panel, s)).join("")}</ol>`;
   if (r.skipped?.length) {
     html += `<p class="fine skipped">Left out because your CV already shows them: ${r.skipped.map(esc).join(", ")}.</p>`;
   }

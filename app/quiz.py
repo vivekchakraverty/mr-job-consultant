@@ -66,7 +66,11 @@ def fetch_transcript(video_id: str, cache_dir: Path, node: str | None = None) ->
     path = cache_dir / f"{video_id}.json"
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
-    import yt_dlp
+    try:
+        import yt_dlp
+    except ImportError as e:  # an install upgraded from 0.1.0 without re-running pip
+        raise QuizError("Tests need yt-dlp. Run `pip install -r requirements.txt` in the app's folder, "
+                        "then restart the app.") from e
     opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True}
     if node:
         opts["js_runtimes"] = {"node": {"path": node}}
