@@ -1,21 +1,24 @@
 # Changelog
 
-## Unreleased
-
-### Added
-- **Interview tab**: record yourself answering five tough non-technical questions, then get feedback
-  on your body language, articulation and mindset compared with what interviewers commonly look for.
-  Speech (Whisper), body pose (ViTPose) and smiles are analysed free on your own computer; the free
-  writer Space turns the measurements and transcript into scores, flaws with evidence, fixes and a
-  stronger answer. Recordings stay on your computer.
-- Desktop builds include every Node script in `app/youtube`, so the Interview tab's `media.mjs` is
-  bundled too.
-
 ## 0.3.0 (2026-11-02)
 
-Ready-to-run downloads for Windows, macOS and Linux: no Python, Node.js or setup needed.
+Practise tough interview questions on camera and get feedback, and run the app without installing
+anything: ready-to-run downloads for Windows, macOS and Linux.
 
 ### Added
+- **Interview tab**: record yourself answering five common but tough non-technical questions (tell
+  me about yourself, your greatest weakness, a time you failed, a conflict with a colleague, why we
+  should hire you). Re-record and replay any answer. "Get my feedback" then scores your **body
+  language, articulation and mindset** (1–5) against what interviewers commonly look for, and lists
+  the flaws with their evidence and a fix, what worked, and how a stronger answer would go.
+  - On your own computer, free: speech to text with timings (`onnx-community/whisper-base`), 17 body
+    keypoints per frame (`onnx-community/vitpose-base-simple`), and smiles
+    (`Xenova/facial_emotions_image_detection`). From these: pace, filler and hedging words, pauses,
+    length, facing the camera, posture, head tilt, hands, fidgeting and framing.
+  - The free writer Space, on your own Hugging Face account, writes the feedback from the transcript
+    and those measurements. Quotes it gives as evidence are checked against what you said.
+  - Recordings stay on your computer; only the transcript and the measurements go to the AI. The
+    models (about 240 MB) download the first time you ask for feedback.
 - **Desktop builds** for Windows x64, macOS (Apple Silicon and Intel) and Linux x64, each with
   Python, Node.js and every package inside. Run `MrJobConsultant` and the app opens in your browser.
   Running it again while it's open just shows the open one; if port 8765 is taken, it picks another.
@@ -30,6 +33,8 @@ Ready-to-run downloads for Windows, macOS and Linux: no Python, Node.js or setup
 ### Notes
 - The builds aren't code-signed yet: Windows SmartScreen may warn, and macOS needs the download flag
   cleared once (see "Download" in the README).
+- Interview feedback takes 1–2 minutes per answer on the free GPU. The tab needs a camera and
+  microphone; it has been tested in Chromium-based browsers (Chrome, Edge).
 
 ## 0.2.1 (2026-11-02)
 
