@@ -1863,6 +1863,41 @@ function showInterviewResult(r) {
     }).join("")}</ol>`;
 }
 
+/* ---------- "a new version is out" banner ---------- */
+
+const UPDATE_DISMISSED_KEY = "updateDismissed";
+const OS_NAMES = { windows: "Windows", macos: "macOS", linux: "Linux" };
+
+async function checkForUpdate() {
+  let u;
+  try { u = await (await fetch("/api/update")).json(); } catch { return; }  // offline: no news
+  if (!u.newer) return;
+  try { if (localStorage.getItem(UPDATE_DISMISSED_KEY) === u.latest) return; } catch { /* show it */ }
+  $("#update-title").textContent = `Version ${u.latest} is out.`;
+  $("#update-notes").href = u.notes_url;
+  const go = $("#update-go");
+  if (u.how === "download" && u.download) {
+    const os = OS_NAMES[(u.download.name.match(/-(windows|macos|linux)-/) || [])[1]] || "your system";
+    $("#update-sub").textContent = `You have ${u.current}. Download the new one and use it in place of the old folder; your data stays where it is.`;
+    go.textContent = `Download for ${os}${u.download.mb ? ` (${u.download.mb} MB)` : ""}`;
+    go.href = u.download.url;
+  } else if (u.how === "download") {  // no file for this system in that release: send them to the page
+    $("#update-sub").textContent = `You have ${u.current}.`;
+    go.textContent = "Get it";
+    go.href = u.notes_url;
+  } else {
+    $("#update-sub").textContent = `You have ${u.current}. Stop the app, then run git pull and the install steps again.`;
+    go.textContent = "How to update";
+    go.href = u.upgrade_docs;
+  }
+  $("#update-banner").hidden = false;
+  $("#update-dismiss").onclick = () => {
+    try { localStorage.setItem(UPDATE_DISMISSED_KEY, u.latest); } catch { /* hides for now only */ }
+    $("#update-banner").hidden = true;
+  };
+}
+checkForUpdate();
+
 /* ---------- tabs ---------- */
 
 const TAB_HASH = { jobs: "", upskill: "#upskilling", reskill: "#reskilling", interview: "#interview" };
