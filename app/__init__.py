@@ -1,7 +1,7 @@
 """Mr. Job Consultant: the local job search and application web app."""
 import os
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # Never let huggingface_hub / gradio_client fall back to the Hugging Face login saved on this
 # machine. Without this, any call made with token=None would silently run on the app owner's

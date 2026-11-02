@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-11-03)
+
+The app now tells you when a new version is out. This is the last update you have to spot yourself.
 
 ### Added
 - **Update notice**: when a newer release is out, a banner says so, with the download for your
