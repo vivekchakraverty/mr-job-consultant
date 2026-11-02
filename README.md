@@ -5,9 +5,30 @@
 Finds jobs that fit you across hundreds of login-free job sites, and helps you apply with a tailored
 resume and cover letter that only use facts from your own CV.
 
-**Version 0.2.1** · [MIT License](LICENSE) · [Changelog](CHANGELOG.md) · [Contributors](CONTRIBUTORS.md): @vivekchakraverty and Claude (Anthropic)
+**Version 0.3.0** · [MIT License](LICENSE) · [Changelog](CHANGELOG.md) · [Contributors](CONTRIBUTORS.md): @vivekchakraverty and Claude (Anthropic)
 
-## Quick start
+## Download
+
+Ready-to-run builds for **Windows**, **macOS** (Apple Silicon and Intel) and **Linux** are on the
+[Releases page](https://github.com/vivekchakraverty/mr-job-consultant/releases/latest). They include
+everything (Python, Node.js and all packages), so there's nothing else to install.
+
+1. Download the file for your system and unpack it.
+2. Run `MrJobConsultant` (`MrJobConsultant.exe` on Windows) inside the `MrJobConsultant` folder. A
+   small window shows the app's address and your browser opens it; keep that window open while you
+   use the app.
+3. Your data is kept in `%APPDATA%\MrJobConsultant` (Windows), `~/Library/Application Support/MrJobConsultant`
+   (macOS) or `~/.local/share/MrJobConsultant` (Linux), so a new version can replace the folder.
+
+The builds aren't code-signed yet. On **Windows**, SmartScreen may warn: choose *More info → Run
+anyway*. On **macOS**, clear the download flag once before the first run:
+`xattr -dr com.apple.quarantine ~/Downloads/MrJobConsultant` (adjust the path), then open it. On
+**Linux**, the build needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later).
+
+To make the builds yourself: `python packaging/build.py` builds for the system it runs on, and
+`.github/workflows/build.yml` builds all of them on GitHub Actions.
+
+## Quick start (from source)
 
 ```bash
 python -m venv .venv

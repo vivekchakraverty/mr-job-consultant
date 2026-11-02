@@ -5,6 +5,7 @@ Run:  .venv\\Scripts\\python -m uvicorn app.server:app --port 8765
 import asyncio
 import json
 import logging
+import os
 import re
 import shutil
 import uuid
@@ -25,7 +26,8 @@ from .jobs import Job, best_title, filter_jobs, load_jobs
 from .titles import suggest as suggest_titles
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
+# ./data when run from source; the builds' launcher (app/launcher.py) points this at a per-user folder.
+DATA_DIR = Path(os.environ["MRJC_DATA_DIR"]) if os.environ.get("MRJC_DATA_DIR") else ROOT / "data"
 CV_DIR = DATA_DIR / "cv"
 PROFILE_PATH = DATA_DIR / "search_profile.json"
 PORTALS_PATH = DATA_DIR / "public_job_portals.json"
@@ -140,6 +142,12 @@ def _portal_summary(profile: SearchProfile) -> dict:
         "matching": sum(fits(p) for p in portals),
         "remote_focused": sum("remote" in (p.get("niches") or []) for p in portals),
     }
+
+
+@app.get("/api/version")
+def version() -> dict:
+    """Lets the launcher tell a running copy of this app apart from anything else on the port."""
+    return {"app": "MrJobConsultant", "version": __version__}
 
 
 @app.get("/api/profile")
@@ -654,6 +662,8 @@ async def learn_videos(body: VideosRequest) -> dict:
     async def work(task):
         task["videos"] = [None] * len(topics)  # filled in topic by topic, so the page can show them as they come
         done = 0
+        if not videos.model_ready(LEARN_DIR / "models"):
+            task.update(message="Getting the comment-sentiment model ready: a one-time 125 MB download…")
 
         def on_topic(i, found, error):
             nonlocal done

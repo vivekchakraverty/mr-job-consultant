@@ -22,6 +22,7 @@ import math
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -33,6 +34,8 @@ log = logging.getLogger("app.videos")
 WORKER = Path(__file__).resolve().parent / "youtube" / "worker.mjs"
 SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 ONNX_MODEL = "Xenova/twitter-roberta-base-sentiment-latest"  # the same model exported to ONNX, int8
+MODEL_FILES = ("config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+               "vocab.json", "quantize_config.json", "onnx/model_quantized.onnx")  # the model last
 CANDIDATES = 10      # search results looked at per topic
 DETAILED = 4         # of those, how many get likes and comments fetched
 TOP = 3              # shown per topic
@@ -45,7 +48,11 @@ class VideoError(Exception):
 
 
 def _find_node() -> str | None:
-    """Node.js, even when the app was started with a PATH that doesn't include it (services, IDEs)."""
+    """Node.js: the copy inside a build, else the installed one, even when the app was started with a
+    PATH that doesn't include it (services, IDEs)."""
+    bundled = Path(getattr(sys, "_MEIPASS", "")) / "node" / ("node.exe" if os.name == "nt" else "node")
+    if getattr(sys, "frozen", False) and bundled.is_file():
+        return str(bundled)
     if found := os.environ.get("NODE_BINARY") or shutil.which("node"):
         return found
     roots = [os.environ.get(k) for k in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA", "NVM_SYMLINK")]
@@ -70,14 +77,31 @@ class _Worker:
         self.model_lock = threading.Lock()
 
     def ensure_model(self) -> None:
-        """Download the sentiment model's ONNX export once (resumable). Ranking works without it, just less well."""
+        """Download the sentiment model's ONNX export once. Ranking works without it, just less well.
+
+        A plain streaming download rather than huggingface_hub's, which stalled inside the frozen
+        builds. Each file is written under a .part name and renamed when complete, and the model file
+        comes last, so its presence means the whole model is there.
+        """
+        target = self.model_cache / ONNX_MODEL
         with self.model_lock:
-            if (self.model_cache / ONNX_MODEL / "onnx" / "model_quantized.onnx").exists():
+            if (target / MODEL_FILES[-1]).exists():
                 return
+            import httpx
             try:
-                from huggingface_hub import snapshot_download
-                snapshot_download(ONNX_MODEL, local_dir=self.model_cache / ONNX_MODEL, token=False,
-                                  allow_patterns=["*.json", "onnx/model_quantized.onnx"])
+                with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(30, read=120)) as client:
+                    for name in MODEL_FILES:
+                        dest = target / name
+                        if dest.exists():
+                            continue
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        part = dest.with_name(dest.name + ".part")
+                        with client.stream("GET", f"https://huggingface.co/{ONNX_MODEL}/resolve/main/{name}") as r:
+                            r.raise_for_status()
+                            with part.open("wb") as f:
+                                for chunk in r.iter_bytes(1 << 20):
+                                    f.write(chunk)
+                        part.replace(dest)
             except Exception as e:
                 log.warning("sentiment model download failed: %s", e)
 
@@ -134,6 +158,10 @@ class _Worker:
 
 
 _worker: _Worker | None = None
+
+
+def model_ready(model_cache: Path) -> bool:
+    return (model_cache / ONNX_MODEL / MODEL_FILES[-1]).exists()
 
 
 def _get_worker(model_cache: Path) -> _Worker:

@@ -89,7 +89,7 @@ async function details({ video, comments = 20 }) {
   return out;
 }
 
-const OPS = { search, details };
+const OPS = { search, details, ping: async () => "pong" };  // ping: the builds' self-check
 const send = (msg) => process.stdout.write(JSON.stringify(msg) + "\n");
 
 readline.createInterface({ input: process.stdin }).on("line", async (line) => {
