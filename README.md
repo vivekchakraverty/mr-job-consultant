@@ -12,9 +12,11 @@ resume and cover letter that only use facts from your own CV.
 ```bash
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
+npm install --prefix app/youtube
 .venv\Scripts\python -m uvicorn app.server:app --port 8765
 ```
 
+The `npm install` step (Node.js 20+) is only needed for the video suggestions in the learning plans.
 Then open http://127.0.0.1:8765. The job-portal directory in `data/public_job_portals.json` is
 included; rebuild or extend it with the crawler (below).
 
@@ -108,6 +110,62 @@ Writing engines, always billed to the requester's own token:
   `llamaindex/ExtractBench` among models HF can serve, falling back to `Qwen/Qwen3.6-35B-A3B` and
   `deepseek-ai/DeepSeek-V4.1-Flash`. Uses the caller's own Inference credits (about 1–2¢).
 * **No token**: the CV is reformatted for ATS as it is: no tailoring, no letter, no AI.
+
+### Upskilling and reskilling
+
+Two more tabs (`app/learning.py`). Both start from the CV saved with the job search, or one attached
+in the tab. If the tailoring step has already extracted that CV's facts, they are reused with no new
+AI call; otherwise the CV text is read directly.
+
+* **Upskilling** suggests 8 specific skills that build on the CV for the current role, or for a role
+  typed in. **Reskilling** suggests 3 realistic new roles, the strengths that carry over, and the
+  skills each one needs. Skills the CV already names are dropped and listed.
+* Clicking a skill builds a plan aimed at moderate proficiency: 4–6 units, each split into modules,
+  with topics, a practice task per module, a checkpoint per unit and a capstone project. It can be
+  downloaded as PDF or DOCX (`data/learning/files/`).
+
+Everything runs on the free writer Space (`Qwen/Qwen3.6-35B-A3B-FP8`) on the requester's own daily
+ZeroGPU time, and nothing is billed. The model writes about 10 tokens a second there, so each call is
+kept small: a curriculum is one outline call plus parallel topic calls of up to 8 modules each,
+about 3–4 minutes in all. Results are saved per CV in `data/learning/cache/`, so opening the same
+skill again is instant and uses no GPU time.
+
+**Videos for every topic** (`app/videos.py`, `app/youtube/worker.mjs`). Each topic shows its top 3
+YouTube videos, loading unit by unit as units are opened, at about 4 seconds per topic.
+[youtubei.js](https://github.com/LuanRT/YouTube.js) searches through YouTube's own web API from
+this connection, with no login and no API key. It was picked over yt-dlp because it needs one
+request per search and two per video, versus yt-dlp's full page extraction: about 5 s against 40 s
+per topic, and a gentler load on a home connection. The 4 most relevant results are ranked on:
+
+| signal | weight |
+|---|---|
+| sentiment of the top 15 comments, weighted by the comments' own likes | 30% |
+| how well the title and description match the topic and skill | 25% |
+| likes per view | 20% |
+| views (log scale) | 15% |
+| comment count, and a lesson-length duration | 10% |
+
+Likes per view and sentiment are pulled toward typical values until a video has enough views and
+comments to trust them, so a 100-view video with 5 likes doesn't beat an established tutorial.
+Sentiment comes from [`cardiffnlp/twitter-roberta-base-sentiment-latest`](https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest),
+the most-used sentiment model on Hugging Face, trained on 124M social-media posts, so it suits short
+informal comments. It runs on this computer's CPU through its int8 ONNX export (downloaded once,
+about 125 MB, to `data/learning/models/`), so it's free and uses no quota. Rankings are saved for
+two weeks in `data/learning/videos/`.
+
+Each topic is a collapsible section. Opening it embeds its 3 videos (youtube-nocookie players), each
+with **Mark as viewed** and **Take test** buttons; the topic's header shows how many were viewed and
+the best test score.
+
+**Tests** (`app/quiz.py`). yt-dlp reads the video's captions (English first, manual before
+automatic; no login, no download, cached in `data/learning/transcripts/`). The free writer Space then
+writes 10 multiple-choice questions in two side-by-side calls, each given a different part of the
+transcript so the questions don't overlap; this takes 2–3 minutes on ZeroGPU. Code checks every
+question (4 distinct options, one answer, no "all of the above", no near-repeats) and shuffles the
+options. Answers stay on this computer until submission, then the test is graded here and the score
+saved with the date in `data/learning/progress.json`, next to the viewed flags. **Retake** asks for a
+new set from randomly chosen parts of the transcript, and passes every earlier question as one to
+avoid.
 
 ## Job portal crawler (`portal_crawler/`)
 

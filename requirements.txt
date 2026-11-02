@@ -14,6 +14,7 @@ trafilatura>=1.8
 huggingface_hub>=1.0
 gradio_client>=1.0
 numpy
+yt-dlp            # video transcripts for the learning-plan tests
 # optional: search-engine discovery (--search)
 ddgs>=9.0
 # optional: re-check JS-rendered job pages (--render); run `playwright install chromium` after
