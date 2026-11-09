@@ -106,6 +106,29 @@ def check() -> int:
         for name in ("docx", "fpdf", "pypdf", "trafilatura", "gradio_client", "huggingface_hub"):
             __import__(name)
         report["libraries"] = True
+        # Exercise the bundled native audio decoder, ONNX runtime and Whisper's VAD asset without
+        # downloading the speech model. Import-only checks would miss a missing DLL or model file.
+        import io
+        import wave
+        import numpy as np
+        from faster_whisper import WhisperModel  # noqa: F401
+        from faster_whisper.audio import decode_audio
+        from faster_whisper.vad import get_speech_timestamps
+        sample = io.BytesIO()
+        with wave.open(sample, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
+            wav.writeframes(b"\0\0" * 16000)
+        sample.seek(0)
+        decoded = decode_audio(sample)
+        get_speech_timestamps(np.asarray(decoded, dtype=np.float32))
+        report["interview_transcription"] = True
+        vision = videos.WORKER.parent / "node_modules" / "@mediapipe" / "tasks-vision"
+        report["interview_vision"] = all(p.is_file() for p in (
+            STATIC_DIR / "models" / "pose_landmarker_lite.task", vision / "vision_bundle.mjs",
+            vision / "wasm" / "vision_wasm_internal.wasm", vision / "wasm" / "vision_wasm_nosimd_internal.wasm"))
+        ok &= report["interview_vision"]
         if node:  # the worker really starts and answers (a bad op fails fast, without touching YouTube)
             import subprocess
             out = subprocess.run([node, str(videos.WORKER)], input='{"id": 1, "op": "ping"}\n', text=True,

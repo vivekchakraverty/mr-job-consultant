@@ -493,6 +493,49 @@
         <p class="error" id="iv-error" role="alert"></p>
         <div id="iv-report"></div>
       </section>
+      <details class="practice-extra">
+        <summary>Practice a question of your own</summary>
+      <div class="intro panel-intro"><h1>Practice your next interview</h1><p>Take your time, review your answer, and try again.</p></div>
+      <div class="learn-cards">
+        <section class="card interview-card">
+          <h2>Your question</h2>
+          <label for="practice-kind">Question type</label>
+          <select id="practice-kind" class="field"><option value="behavioral">Behavioral</option><option value="general">General</option><option value="technical">Technical</option></select>
+          <label for="practice-question">Interview question</label>
+          <textarea id="practice-question" class="field" rows="3" maxlength="1000">Tell me about a time you overcame a challenge at work.</textarea>
+          <p class="hint">Use your own question, or change the type for a different example.</p>
+        </section>
+        <section class="card interview-card">
+          <h2>Your answer</h2>
+          <p class="hint">Record video or audio, or type your answer. Video stays in this browser. Transcription sends only audio to the app server. Leaving or reloading clears the recording.</p>
+          <label for="practice-mode">Recording mode</label><select id="practice-mode" class="field"><option value="video">Video and audio</option><option value="audio">Audio only</option></select>
+          <div class="interview-actions"><button type="button" class="secondary" id="practice-record">Start recording</button><button type="button" class="secondary" id="practice-stop" disabled>Stop recording</button><span id="practice-clock" role="status">00:00</span></div>
+          <audio id="practice-audio" controls hidden></audio>
+          <video id="practice-video" playsinline controls hidden></video>
+          <div id="practice-vision" hidden><button type="button" class="secondary" id="practice-analyze">Analyze body movement</button>
+            <p class="hint">Uses Google's MediaPipe Pose Landmarker in your browser, sampling about once per second. Results are approximate; lighting, camera angle, framing and body differences can affect them. The model does not measure confidence, intent or interview ability.</p>
+            <div id="practice-vision-results" aria-live="polite"></div></div>
+          <div id="practice-transcription" hidden>
+            <button type="button" class="secondary" id="practice-transcribe">Transcribe with local Whisper</button>
+            <p class="hint">Whisper runs on this app server. The speech model downloads on first use and is reused afterwards. Audio is not sent to the AI coach.</p>
+          </div>
+          <label for="practice-answer">Answer / editable transcript</label>
+          <textarea id="practice-answer" class="field" rows="8" maxlength="20000" placeholder="Type your answer or transcribe your recording…"></textarea>
+          <p class="hint">Transcription can miss words and fillers. Check the text before reviewing it. When audio is present, pace uses its duration and this text.</p>
+          <div class="interview-actions"><label for="practice-min">Length guide (seconds)</label><input id="practice-min" class="field interview-length" type="number" min="1" max="1800" value="60" aria-label="Minimum answer length in seconds"><span>to</span><input id="practice-max" class="field interview-length" type="number" min="1" max="1800" value="120" aria-label="Maximum answer length in seconds"></div>
+          <div class="interview-actions"><button type="button" class="primary" id="practice-review">Review answer</button><button type="button" class="secondary" id="practice-retry">Try again</button><button type="button" class="link-btn" id="practice-clear">Clear practice</button></div>
+          <p class="error" id="practice-error" role="alert"></p><p id="practice-status" class="hint" role="status" aria-live="polite"></p>
+        </section>
+        <section class="card interview-card" id="practice-report" hidden>
+          <h2>Your review</h2><div id="practice-metrics"></div><div id="practice-length"></div><div id="practice-fillers"></div><div id="practice-comparison"></div><div id="practice-pauses"></div>
+          <p class="hint">Filler candidates are approximate; some words may be used meaningfully. Pace includes pauses. Targets are guides, not grades.</p>
+          <h3>Content coaching</h3>
+          <p class="hint">Optional: sends your question and answer to your configured Hugging Face writer Space. It uses your own token and ZeroGPU quota. Audio is not sent to the coach.</p>
+          <button type="button" class="secondary" id="practice-coach">Get AI coaching</button>
+          <div id="practice-feedback" aria-live="polite"></div>
+        </section>
+      </div>
+      </details>
     </section>
   </main>
 
@@ -765,5 +808,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <script src="/static/app.js"></script>
+  <script src="/static/interview-enhanced.js"></script>
 </body>
 </html>

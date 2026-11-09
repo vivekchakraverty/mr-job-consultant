@@ -4,7 +4,7 @@
 import os
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).parent
 APP = ROOT / "app"
@@ -22,7 +22,7 @@ datas = [
 ]
 # Packages that read their own data files at run time.
 for package in ("docx", "trafilatura", "justext", "courlan", "htmldate", "tldextract", "gradio_client",
-                "fpdf", "certifi", "yt_dlp"):
+                "fpdf", "certifi", "yt_dlp", "faster_whisper"):
     try:
         datas += collect_data_files(package)
     except Exception:
@@ -32,10 +32,16 @@ hiddenimports = (collect_submodules("uvicorn")        # picks its loop and proto
                  + collect_submodules("python_multipart")
                  + collect_submodules("yt_dlp.extractor"))
 
+# Whisper's VAD uses a packaged ONNX model; decoding and inference also need native libraries.
+# Collect distribution metadata for libraries that query their version at runtime.
+for package in ("faster-whisper", "ctranslate2", "onnxruntime", "av", "tokenizers"):
+    datas += copy_metadata(package)
+whisper_binaries = collect_dynamic_libs("ctranslate2") + collect_dynamic_libs("onnxruntime")
+
 a = Analysis(
     [str(APP / "launcher.py")],
     pathex=[str(ROOT)],
-    binaries=[(str(NODE), "node")],
+    binaries=[(str(NODE), "node")] + whisper_binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     excludes=["playwright", "ddgs", "tkinter", "matplotlib", "torch", "pytest"],

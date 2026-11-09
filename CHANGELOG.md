@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 (2026-11-09)
+
+### Added
+- Practice a custom behavioral, general, or technical interview question alongside the existing five-question practice. Record video or audio, or type an answer; review the transcript, timing, pace and possible fillers, and compare a retry.
+- Bundled MediaPipe Pose Landmarker runs in the browser and links approximate upper-body and hand movement observations to video playback and nearby transcript words. It reports insufficient visibility rather than scoring it and does not infer confidence or intent.
+- Bundled faster-whisper transcribes the audio track locally. The Whisper base model downloads on first use; pose analysis and video playback remain in the browser. Optional text coaching uses the user's existing writer Space.
+- Desktop self-check verifies the bundled audio decoder, pose model and browser runtime.
+
 ## 0.4.0 (2026-11-03)
 
 The app now tells you when a new version is out. This is the last update you have to spot yourself.

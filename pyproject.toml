@@ -1,6 +1,6 @@
 [project]
 name = "mr-job-consultant"
-version = "0.4.0"
+version = "0.5.0"
 description = "Find jobs across login-free job sites and apply with a tailored, fact-checked resume and cover letter."
 readme = "README.md"
 license = "MIT"
@@ -26,6 +26,8 @@ dependencies = [
   "huggingface_hub>=1.0",
   "gradio_client>=1.0",
   "numpy",
+  "faster-whisper>=1.1,<2",
+  "av>=11,<17",
 ]
 
 [project.optional-dependencies]
