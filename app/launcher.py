@@ -158,7 +158,8 @@ def main() -> int:
     if args.check:
         return check()
     if _ours(args.port):  # started twice: just show the running one
-        webbrowser.open(f"http://127.0.0.1:{args.port}")
+        if not args.no_browser:
+            webbrowser.open(f"http://127.0.0.1:{args.port}")
         print(f"Mr. Job Consultant is already running at http://127.0.0.1:{args.port}")
         return 0
 
