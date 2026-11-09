@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
-from . import __version__, interview, learning, llm, matching, quiz, render, tailor, updates, videos
+from . import __version__, interview, interview_enhanced, learning, llm, matching, quiz, render, tailor, updates, videos
 from .cv_extract import extract_contact, extract_text
 from .jobpage import fetch_job_page
 from .jobs import Job, best_title, filter_jobs, load_jobs
@@ -590,6 +590,59 @@ def _free_writer(request: Request, x_hf_token: str | None) -> llm.Writer:
     if not space_id:
         raise HTTPException(400, "The free writer Space isn't set up, so there's no model to ask.")
     return llm.Writer("zerogpu", token, space_id)
+
+
+class InterviewAnswer(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    kind: Literal["behavioral", "general", "technical"] = "behavioral"
+    answer: str = Field(min_length=1, max_length=20000)
+    duration: float | None = Field(default=None, ge=1, le=1800, allow_inf_nan=False)
+
+
+@app.post("/api/interview/metrics")
+def interview_metrics(body: InterviewAnswer) -> dict:
+    return interview_enhanced.metrics(body.answer, body.duration)
+
+
+@app.post("/api/interview/coach")
+async def interview_coach(body: InterviewAnswer, request: Request,
+                          x_hf_token: str | None = Header(default=None)) -> dict:
+    writer = _free_writer(request, x_hf_token)
+    try:
+        result = await interview_enhanced.coach(writer, body.question, body.kind, body.answer)
+    except (matching.MatchError, ValueError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"feedback": result, "model": writer.model_used}
+
+
+@app.post("/api/interview/transcribe")
+async def interview_transcribe(file: UploadFile = File(...)) -> dict:
+    data = await file.read(15 * 1024 * 1024 + 1)
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(413, "The recording is over 15 MB. Try a shorter answer.")
+    if not data:
+        raise HTTPException(400, "The recording is empty.")
+    try:
+        return await asyncio.to_thread(interview_enhanced.transcribe, data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        log.exception("interview transcription failed")
+        raise HTTPException(500, "Transcription failed. Check the local Whisper installation and model download, then try again.") from exc
+
+
+@app.get("/api/interview/vision/{asset_path:path}")
+def interview_vision_asset(asset_path: str):
+    """Serve only the browser vision runtime, never arbitrary node_modules files."""
+    allowed = {"vision_bundle.mjs", "wasm/vision_wasm_internal.js", "wasm/vision_wasm_internal.wasm",
+               "wasm/vision_wasm_nosimd_internal.js", "wasm/vision_wasm_nosimd_internal.wasm"}
+    if asset_path not in allowed:
+        raise HTTPException(404, "Vision asset not found.")
+    path = videos.WORKER.parent / "node_modules" / "@mediapipe" / "tasks-vision" / asset_path
+    if not path.is_file():
+        raise HTTPException(503, "Vision runtime is missing. Run npm install --prefix app/youtube and restart.")
+    media = "application/wasm" if asset_path.endswith(".wasm") else "text/javascript"
+    return FileResponse(path, media_type=media)
 
 
 def _learn_inputs(body: LearnRequest, request: Request, x_hf_token: str | None) -> tuple[llm.Writer, str]:

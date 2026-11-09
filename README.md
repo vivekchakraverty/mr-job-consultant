@@ -5,7 +5,7 @@
 Finds jobs that fit you across hundreds of login-free job sites, and helps you apply with a tailored
 resume and cover letter that only use facts from your own CV.
 
-**Version 0.4.0** · [MIT License](LICENSE) · [Changelog](CHANGELOG.md) · [Contributors](CONTRIBUTORS.md): @vivekchakraverty and Claude (Anthropic)
+**Version 0.5.0** · [MIT License](LICENSE) · [Changelog](CHANGELOG.md) · [Contributors](CONTRIBUTORS.md): @vivekchakraverty and Claude (Anthropic)
 
 ## Download
 
@@ -42,7 +42,7 @@ npm install --prefix app/youtube
 .venv\Scripts\python -m uvicorn app.server:app --port 8765
 ```
 
-The `npm install` step (Node.js 20+) is only needed for the video suggestions in the learning plans.
+The `npm install` step (Node.js 20+) supplies learning-plan video suggestions and interview vision analysis.
 Then open http://127.0.0.1:8765. The job-portal directory in `data/public_job_portals.json` is
 included; rebuild or extend it with the crawler (below).
 
@@ -235,6 +235,37 @@ articulation and mindset, the flaws with their evidence and a fix, strengths, an
 answer would go. Quotes given as evidence are checked against the transcript, and made-up ones are
 dropped. Recordings and results stay in `data/interview/` on this computer; only the transcript and
 the measurements go to the Space.
+
+
+### Practice a question of your own
+
+Open **Interview** and expand **Practice a question of your own** to record a video or audio answer, or type one. Review the word
+count, possible fillers and (for a recording) answer length and overall pace, then retry the same
+question. Fillers are approximate: words such as “like” may be part of the answer. Recordings and
+reviews are cleared on reload or close; **Clear practice** also removes the current recording and
+comparison. The video stays in the browser. Choosing transcription sends a separately recorded
+audio track to the app server; choosing content coaching sends the question and text to the writer.
+
+**Analyze body movement** runs Google's [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)
+locally in the browser using the bundled Lite model. Its runtime comes from the `npm install` above
+and is included in desktop builds. It samples about one frame per second and links approximate observations to
+the corresponding moments in the video. Tracking can fail or be affected by framing, lighting,
+camera angle, occlusion, and individual body differences. It does not determine confidence,
+personality, intention or interview performance. The model is a general pose model, not an
+interview-trained classifier. [Model card and license](https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf).
+
+Local Whisper transcription is included in the desktop builds and in the standard source install.
+The first transcription downloads the `base` Whisper model from Hugging Face, so it needs an internet
+connection; the model is cached for later use. Inference runs on the app server's CPU. Audio is sent
+to that server and is not kept as a recording; the upload may use temporary buffering. Transcription
+can take time and can miss words or fillers, so edit the transcript.
+Pauses are approximate gaps between transcribed words and disappear if the transcript is edited.
+
+**Get AI coaching** is optional and sends the question and transcript to the configured writer Space
+using the person's own Hugging Face token and ZeroGPU quota. Set up the writer Space and token in
+the Find jobs tab first. Audio is not sent to the coach. Feedback is a suggestion, and the quote shown
+as evidence is checked against the answer. Video is not sent to the coach.
+
 
 ## Job portal crawler (`portal_crawler/`)
 

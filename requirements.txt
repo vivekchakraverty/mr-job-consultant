@@ -14,6 +14,8 @@ trafilatura>=1.8
 huggingface_hub>=1.0
 gradio_client>=1.0
 numpy
+faster-whisper>=1.1,<2  # local interview transcription
+av>=11,<17        # newer PyAV releases removed an argument faster-whisper currently uses
 yt-dlp            # video transcripts for the learning-plan tests
 # optional: search-engine discovery (--search)
 ddgs>=9.0
